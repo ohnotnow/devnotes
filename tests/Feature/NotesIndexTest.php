@@ -1,0 +1,49 @@
+<?php
+
+use App\Livewire\NotesIndex;
+use App\Models\Note;
+use App\Models\User;
+use Livewire\Livewire;
+
+it('filters notes by search term across title and body', function () {
+    $user = User::factory()->create();
+    Note::factory()->create(['title' => 'Livewire modal focus gotcha', 'body' => 'Set wire:key on the trigger.']);
+    Note::factory()->create(['title' => 'Postgres ilike surprise', 'body' => 'LIKE is case sensitive there.']);
+    Note::factory()->create(['title' => 'Sequences after restore', 'body' => 'Another postgres one - reset sequences after a pg_restore.']);
+
+    Livewire::actingAs($user)
+        ->test(NotesIndex::class)
+        ->set('search', 'postgres')
+        ->assertSee('Postgres ilike surprise')
+        ->assertSee('Sequences after restore')
+        ->assertDontSee('Livewire modal focus gotcha');
+});
+
+it('tracks the search term in the url so searches are shareable', function () {
+    $user = User::factory()->create();
+    Note::factory()->create(['title' => 'Postgres ilike surprise']);
+
+    Livewire::actingAs($user)
+        ->withQueryParams(['search' => 'postgres'])
+        ->test(NotesIndex::class)
+        ->assertSet('search', 'postgres')
+        ->assertSee('Postgres ilike surprise');
+});
+
+it('lists notes newest-first with their id, title and author', function () {
+    $viewer = User::factory()->create(['forenames' => 'Vera', 'surname' => 'Viewer']);
+    $olderAuthor = User::factory()->create(['forenames' => 'Older', 'surname' => 'Author']);
+    $newerAuthor = User::factory()->create(['forenames' => 'Newer', 'surname' => 'Author']);
+    $olderNote = Note::factory()->create(['title' => 'An older gotcha', 'user_id' => $olderAuthor->id, 'created_at' => now()->subDay()]);
+    $trashedNote = Note::factory()->create(['title' => 'A binned gotcha']);
+    $trashedNote->delete();
+    Note::factory()->create(['title' => 'A newer gotcha', 'user_id' => $newerAuthor->id]);
+
+    $response = $this->actingAs($viewer)->get('/');
+
+    $response->assertSuccessful();
+    $response->assertSeeInOrder(['A newer gotcha', 'Newer Author', 'An older gotcha', 'Older Author']);
+    $response->assertSee(route('notes.show', $olderNote));
+    $response->assertSee("#{$olderNote->id}");
+    $response->assertDontSee('A binned gotcha');
+});
