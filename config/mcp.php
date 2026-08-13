@@ -15,18 +15,16 @@ return [
     |
     */
 
-    // DELIBERATE DEV-ONLY WILDCARD (decided 2026-08-13): '*' stays while the
-    // app is loopback-only on lando and colleagues are testing connectors.
-    // It MUST become an explicit allowlist before any internet-reachable
-    // deploy - with '*', any domain can register itself as an OAuth redirect
-    // target via the unauthenticated /oauth/register endpoint. The lockdown
-    // recipe and pinning tests are tracked as ait issue devnotes-gbHJd.5.4.
-    // Keep 'http://localhost' allowed when tightening: CLI clients redirect
-    // to ephemeral loopback callback ports.
+    // Allowlist only - a '*' here would let ANY domain register itself as an
+    // OAuth redirect target via the unauthenticated /oauth/register endpoint.
+    // 'http://localhost' is special-cased by laravel/mcp to accept any port,
+    // which is what CLI clients use for their ephemeral loopback callbacks.
+    // env('APP_URL') covers whichever host this deployment lives on.
+    // Pinned by the register-endpoint test in tests/Feature/McpServerTest.php.
     'redirect_domains' => [
-        '*',
-        // 'https://example.com',
-        // 'http://localhost',
+        env('APP_URL'),
+        'https://claude.ai',
+        'http://localhost',
     ],
 
     /*

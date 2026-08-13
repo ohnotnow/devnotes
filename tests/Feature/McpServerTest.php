@@ -4,6 +4,7 @@ use App\Models\Note;
 use App\Models\OAuthUser;
 use App\Models\User;
 use Illuminate\Support\Facades\Config;
+use Laravel\Passport\Client;
 use Laravel\Passport\ClientRepository;
 use Laravel\Passport\Passport;
 
@@ -46,6 +47,41 @@ it('rejects unauthenticated tool calls', function () {
 
     $response->assertUnauthorized();
     expect(Note::count())->toBe(0);
+});
+
+it('only registers oauth clients for allowlisted redirect domains', function () {
+    $allowed = $this->postJson('/oauth/register', [
+        'client_name' => 'test-client',
+        'redirect_uris' => ['https://claude.ai/api/mcp/auth_callback'],
+        'grant_types' => ['authorization_code'],
+        'response_types' => ['code'],
+        'token_endpoint_auth_method' => 'none',
+    ]);
+
+    $allowed->assertCreated();
+    expect(Client::count())->toBe(1);
+
+    $localhostPort = $this->postJson('/oauth/register', [
+        'client_name' => 'cli-client',
+        'redirect_uris' => ['http://localhost:3118/callback'],
+        'grant_types' => ['authorization_code'],
+        'response_types' => ['code'],
+        'token_endpoint_auth_method' => 'none',
+    ]);
+
+    $localhostPort->assertCreated();
+    expect(Client::count())->toBe(2);
+
+    $rejected = $this->postJson('/oauth/register', [
+        'client_name' => 'evil-client',
+        'redirect_uris' => ['https://evil.example/callback'],
+        'grant_types' => ['authorization_code'],
+        'response_types' => ['code'],
+        'token_endpoint_auth_method' => 'none',
+    ]);
+
+    expect($rejected->status())->toBeGreaterThanOrEqual(400);
+    expect(Client::count())->toBe(2);
 });
 
 it('serves oauth discovery metadata without authentication', function () {
