@@ -1,17 +1,17 @@
 # devnotes
 
-A shared pot of dev-team gotchas, kept as tiny markdown notes you can actually find again.
+A CLI and MCP for capturing notes during a live coding session.
 
-Somewhere between a wiki and a gist collection. When someone on the team burns an afternoon on a weird Livewire quirk or a database driver difference, the fix gets captured as a small note. Notes are plain markdown, everyone can edit everything, nothing is precious. Notes can reference each other with `#id`, which renders as a link.
+Somewhere between a wiki and a gist collection. When someone spends an afternoon on a weird Livewire quirk or a database driver difference, the fix gets captured as a quick note and is instantly available to anyone else who is a user of the back-end devnotes app. Notes are plain markdown, everyone can edit everything, nothing is precious. You can also shortcode `#id` to reference related notes.
 
-There are three ways in, all backed by the same data: a web UI for people, a JSON API for scripts and CLI tools, and an MCP server so coding agents can search and capture notes mid-session.
+There are three interfaces: a web UI for people, a JSON API for scripts and CLI tools, and an MCP server for coding agents.
 
 ## Prerequisites
 
 - [Lando](https://lando.dev/) for local development (which brings its own PHP, database and node)
 - A [Flux UI](https://fluxui.dev/) Pro licence. The interface is built with Flux, so `composer install` needs your Flux credentials.
 
-## Getting started
+## Getting started (local)
 
 ```sh
 git clone https://github.com/ohnotnow/devnotes.git
@@ -28,11 +28,13 @@ The seeder creates a local admin login of **admin2x** / **secret**.
 
 Day to day, the usual suspects are `lando artisan`, `lando composer`, `lando npm`, and `lando mfs` whenever you want a fresh database.
 
-Sign-in is normally handled by SSO (Keycloak via Socialite), but with `SSO_ENABLED=false` in your `.env` you get a plain local login form instead, which is what you want for development.
+## Production 
+
+The codebase should be fairly straightforward to get running on the base tier of [Laravel Cloud](https://laravel.com/cloud).  If you want to host it elsewhere have a look through the [Laravel docs](https://laravel.com/docs/13.x/deployment).
 
 ## The API
 
-Everything under `/api/v1` uses [Laravel Sanctum](https://laravel.com/docs/sanctum) bearer tokens. Users create their own tokens on the "API tokens" page in the web UI. Responses are all `data`-wrapped JSON.
+Everything under `/api/v1` uses [Laravel Sanctum](https://laravel.com/docs/sanctum) bearer tokens. Users create their own tokens on the "API tokens" page in the web UI. 
 
 ```sh
 curl -H "Authorization: Bearer $TOKEN" https://your-devnotes-host/api/v1/notes?search=livewire
@@ -50,8 +52,6 @@ claude mcp add --transport http devnotes https://your-devnotes-host/mcp
 
 Agents get three tools: `search-notes` (id, title and a short snippet per hit), `get-note` (the full markdown, accepts `49` or `#49`), and `add-note` (returns the new note's id). The server's instructions nudge agents to search before debugging from scratch and to suggest capturing a note when a session solves something gnarly.
 
-One operational note: MCP clients cache the tool list when they connect, so after deploying new or changed tools your client needs a reconnect before it sees them.
-
 The OAuth keys come from `php artisan passport:keys` (run it once per environment). While you are developing, `config/mcp.php` allows any redirect domain; lock that down before putting the app anywhere public.
 
 ## Search
@@ -63,8 +63,6 @@ Search is [Laravel Scout](https://laravel.com/docs/scout). The example env is se
 ```sh
 php artisan test --compact
 ```
-
-The suite runs against an in-memory sqlite database, so there is nothing to set up first.
 
 ## Contributing
 
