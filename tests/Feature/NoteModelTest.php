@@ -31,7 +31,7 @@ it('seeds notes including a #id cross-reference', function () {
     $originalNote = Note::where('title', 'Livewire flyout modals lose focus on close')->sole();
     $followUpNote = Note::where('title', 'More flyout modal focus history')->sole();
 
-    expect(Note::count())->toBe(5);
+    expect(Note::count())->toBe(7);
     expect($followUpNote->body)->toContain("#{$originalNote->id}");
 });
 

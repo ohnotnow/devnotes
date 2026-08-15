@@ -8,6 +8,7 @@ use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Attributes\Hidden;
 use Illuminate\Database\Eloquent\Casts\Attribute;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
+use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
@@ -36,6 +37,21 @@ class User extends Authenticatable
     public function notes(): HasMany
     {
         return $this->hasMany(Note::class);
+    }
+
+    public function teams(): BelongsToMany
+    {
+        return $this->belongsToMany(Team::class)->withPivot(['subscribed', 'note_default']);
+    }
+
+    public function subscribedTeams(): BelongsToMany
+    {
+        return $this->teams()->wherePivot('subscribed', true);
+    }
+
+    public function defaultNoteTeams(): BelongsToMany
+    {
+        return $this->teams()->wherePivot('note_default', true);
     }
 
     protected function fullName(): Attribute
