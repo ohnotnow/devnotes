@@ -75,6 +75,22 @@ On MySQL, MariaDB, and Postgres the `database` driver uses a full-text index on 
 
 Still one pot, but with tuned recall for mixed departments: notes and people can carry teams, and search shows your teams' notes plus any note with no team at all. Nothing is ever hidden - browsing, note pages, and `#id` references ignore teams entirely, and anyone can still read and edit everything. When a scoped search misses, every surface has a broader switch: a toggle next to the web search box, `broader: true` on the MCP tool, `?broader=1` on the API. New notes default to their author's teams, overridable per note. You tune your own subscriptions at `/settings/teams`; admins manage teams and memberships at `/admin/teams`. If you never create a team, nothing changes.
 
+## Backups, export and import
+
+Admins get an Export link in the sidebar that downloads the whole pot - every note, including soft-deleted ones - as a single JSON file. The same payload is served at `GET /api/v1/export` to tokens belonging to admin users, which makes a scheduled off-site backup a one-line cron job:
+
+```sh
+curl -H "Authorization: Bearer $TOKEN" https://your-devnotes-host/api/v1/export > devnotes-backup.json
+```
+
+To restore a backup, or migrate the pot to a fresh install:
+
+```sh
+php artisan devnotes:import devnotes-backup.json
+```
+
+Notes keep their original ids, so `#id` cross-references keep working. Ids that already exist are skipped and reported, so re-running an import is always safe. Authors the install doesn't know are created from the file (email, name, and the staff/admin flags - passwords and API tokens never travel) and SSO fills in the rest when they first log in. Teams are matched or created by name. The exact file format is pinned, byte for byte, by `tests/fixtures/export-v1.json`.
+
 ## Running tests
 
 ```sh

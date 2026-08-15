@@ -1,6 +1,6 @@
 # Technical overview
 
-Last updated: 2026-08-13
+Last updated: 2026-08-15
 
 ## What this is
 
@@ -21,7 +21,9 @@ A shared pot of dev-team gotchas kept as tiny markdown notes, served three ways 
 app/Livewire/           NotesIndex, NoteShow, NoteForm, ApiTokens, Admin/Users
 app/Mcp/Servers/        DevnotesServer (instructions + tool registration)
 app/Mcp/Tools/          AddNote, SearchNotes, GetNote
-app/Http/Controllers/   Api/V1/NoteController, Auth/SSOController
+app/Http/Controllers/   Api/V1/NoteController + ExportController, Admin/ExportController, Auth/SSOController
+app/Jobs/               ImportNotes (export/import section)
+app/Console/Commands/   ImportNotesCommand (devnotes:import)
 app/Models/             User, Note, OAuthUser (see auth section)
 routes/                 web.php, api.php, ai.php (MCP), sso-auth.php
 config/                 sso.php (access gate), mcp.php (OAuth redirect rules)
@@ -46,6 +48,16 @@ Design and rejected alternatives live in ant ADR devnotes-sXVTv. The whole featu
 - `Note::assignTeams($ids)` attaches explicit teams or the author's `defaultNoteTeams` when given null - create paths only; update paths sync explicitly.
 - `User::syncTeamPreferences($readIds, $defaultIds)` reconciles the pivot from the two checkbox groups; a team in neither list loses its row.
 - Browsing, note show pages, and `#id` resolution are never scoped. Deleting a team cascades its pivot rows, so its notes join the whole pot - nothing is ever hidden.
+
+## Export and import
+
+Design and rejected alternatives live in ant ADR devnotes-9X77J (`ant for devnotes-gbHJd.8`).
+
+- The export format is a versioned contract: `{"version": 1, "notes": [...]}`, shaped by `ExportNoteResource` (deliberately separate from `NoteResource` so the API can evolve without breaking import compatibility) and pinned byte-for-byte by `tests/fixtures/export-v1.json`. `Note::exportPayload()` builds it over `withTrashed()`; `Note::EXPORT_JSON_FLAGS` makes every download byte-identical to the fixture's encoding. Authors travel as email (the matching key) plus names and staff/admin flags; passwords and tokens never travel.
+- Both export doors are admin-only via the `admin` gate: a sidebar download at `/admin/export` and `GET /api/v1/export` for scheduled DR pulls.
+- `ImportNotes` (queued job, `$tries = 1`) takes `(disk, path, createUsers = true, fallbackOwner = null)`. Existing note ids are skipped and reported - re-imports are idempotent, which is also the recovery path for a half-failed import (no transaction, deliberately). Existing users are matched by email and never modified; unknown authors are created (or, with `createUsers: false`, their notes go to the fallback owner). Ids, timestamps, and `deleted_at` are preserved via `forceFill` with timestamps off; trashed notes are created inside `withoutSyncingToSearch` so external search engines never index them.
+- The job deletes its stored working copy in a `finally` - the caller's original file is never touched. `handle()` returns a report array; callers that want it must run the job in-process (`(new ImportNotes(...))->handle()`) because `dispatchSync` discards a `ShouldQueue` job's return value.
+- `devnotes:import {file}` copies the file to the default disk and runs the job in-process. On Postgres the job resets the notes id sequence with a raw `setval` after importing - explicit-id inserts don't advance Postgres sequences, and this is the codebase's one agreed exception to the no-raw-SQL rule.
 
 ## The auth story (the fiddly bit)
 
@@ -93,8 +105,10 @@ Operational quirks learned the hard way: laravel/mcp 0.9 speaks protocol revisio
 | `/settings/teams` | TeamSettings | auth |
 | `/admin/users` | Admin/Users | `can:admin` |
 | `/admin/teams` | Admin/Teams | `can:admin` |
+| `/admin/export` | Admin/ExportController | `can:admin` |
 | `/api/v1/notes` (apiResource) | Api/V1/NoteController | `auth:sanctum` |
 | `/api/v1/teams` (index only) | Api/V1/TeamController | `auth:sanctum` |
+| `/api/v1/export` | Api/V1/ExportController | `auth:sanctum` + `can:admin` |
 | `/mcp` | DevnotesServer | `auth:api` (Passport) |
 | `/.well-known/oauth-*`, `/oauth/register` | laravel/mcp | public (by spec) |
 | `/login`, `/login/sso`, `/auth/callback` | SSOController | guest |
@@ -108,7 +122,7 @@ API routes are name-prefixed `api.v1.*` because a bare `apiResource('notes')` st
 ## Testing
 
 - Pest 5, feature tests, in-memory sqlite via `RefreshDatabase`. No migrations or seeders needed first.
-- `phpunit.xml` pins `SCOUT_DRIVER` and all `SSO_*` keys because `.env` leaks into any test-env key it does not pin. If a test fails oddly on config, suspect a leak first.
+- `phpunit.xml` pins `SCOUT_DRIVER`, `FILESYSTEM_DISK`, and all `SSO_*` keys because `.env` leaks into any test-env key it does not pin. If a test fails oddly on config, suspect a leak first.
 - Tests pin `SCOUT_DRIVER=collection` because sqlite cannot run the production full-text search (`SearchUsingFullText` on `Note` + the guarded full-text index migration). The collection engine filters in PHP, so the real `whereFullText` query path is only exercised by live verification on MySQL/Postgres.
 - House style: assert side-effects through Eloquent models, cover happy and sad paths together, one behaviour per test.
 - Run: `php artisan test --compact`
