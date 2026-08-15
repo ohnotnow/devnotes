@@ -70,4 +70,9 @@ it('creates a named token and surfaces the plaintext for copying', function () {
     expect($plainText)->not->toBeEmpty();
     expect($user->tokens()->sole()->token)->not->toBe($plainText);
     $component->assertSee($plainText);
+
+    // Blade directives are NOT compiled inside component tag attributes, so a
+    // literal @js( reaching the browser means the copy button's Alpine
+    // expression is broken (illegal character U+0040).
+    $component->assertDontSee('@js(');
 });

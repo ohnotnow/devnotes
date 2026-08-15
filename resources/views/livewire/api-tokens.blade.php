@@ -21,7 +21,8 @@
                     size="sm"
                     icon="clipboard-document"
                     x-data
-                    x-on:click="navigator.clipboard.writeText(@js($newPlainTextToken)); $flux.toast('Token copied to clipboard')"
+                    {{-- {{ Js::from() }}, not @js(): Blade directives are not compiled inside component tag attributes. --}}
+                    x-on:click="navigator.clipboard.writeText({{ Illuminate\Support\Js::from($newPlainTextToken) }}); $flux.toast('Token copied to clipboard')"
                 >Copy</flux:button>
             </x-slot>
         </flux:callout>
