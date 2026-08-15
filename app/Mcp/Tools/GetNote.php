@@ -10,7 +10,7 @@ use Laravel\Mcp\Response;
 use Laravel\Mcp\Server\Attributes\Description;
 use Laravel\Mcp\Server\Tool;
 
-#[Description('Fetch one devnote in full, including its raw markdown body. Accepts a note id as returned by search-notes or add-note, in either bare (49) or hash-prefixed (#49) form.')]
+#[Description('Fetch one devnote in full, including its raw markdown body. Accepts a note code as returned by search-notes or add-note, in either bare (abq4x) or hash-prefixed (#abq4x) form.')]
 class GetNote extends Tool
 {
     /**
@@ -19,17 +19,17 @@ class GetNote extends Tool
     public function handle(Request $request): Response
     {
         $validated = $request->validate([
-            'id' => ['required', 'string'],
+            'code' => ['required', 'string'],
         ]);
 
-        $note = Note::find(ltrim($validated['id'], '#'));
+        $note = Note::where('code', ltrim($validated['code'], '#'))->first();
 
         if (! $note) {
-            return Response::error("No note found with id {$validated['id']}. Use search-notes to find the right id.");
+            return Response::error("No note found with code {$validated['code']}. Use search-notes to find the right code.");
         }
 
         return Response::json([
-            'id' => $note->id,
+            'code' => $note->code,
             'title' => $note->title,
             'body' => $note->body,
             'author' => $note->user->full_name,
@@ -46,8 +46,8 @@ class GetNote extends Tool
     public function schema(JsonSchema $schema): array
     {
         return [
-            'id' => $schema->string()
-                ->description('The note id, with or without the leading #.')
+            'code' => $schema->string()
+                ->description('The note code, with or without the leading #.')
                 ->required(),
         ];
     }

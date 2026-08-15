@@ -11,7 +11,7 @@ use Laravel\Mcp\Response;
 use Laravel\Mcp\Server\Attributes\Description;
 use Laravel\Mcp\Server\Tool;
 
-#[Description('Capture a new devnote: a small markdown note recording a gotcha, fix, or lesson learned. Optionally tag it with team names; untagged notes go to your default teams. Returns the new note id, which can be cited as #id in other notes and chat.')]
+#[Description('Capture a new devnote: a small markdown note recording a gotcha, fix, or lesson learned. Optionally tag it with team names; untagged notes go to your default teams. Returns the new note code, which can be cited as #code in other notes and chat.')]
 class AddNote extends Tool
 {
     /**
@@ -37,7 +37,7 @@ class AddNote extends Tool
             : null);
 
         return Response::json([
-            'id' => $note->id,
+            'code' => $note->code,
             'title' => $note->title,
         ]);
     }

@@ -22,7 +22,7 @@ it('finds matching notes via search-notes returning snippets rather than full bo
 
     $response->assertOk();
     $response->assertName('search-notes');
-    $response->assertSee('"id":'.$matchingNote->id);
+    $response->assertSee('"code":"'.$matchingNote->code.'"');
     $response->assertSee('Postgres like-vs-ilike gotcha');
     $response->assertSee('Useful words about the gotcha.');
     $response->assertDontSee('DEEP-TAIL-MARKER');
@@ -120,17 +120,18 @@ it('labels nothing under broader for a caller with no teams', function () {
     $response->assertDontSee('from_outside_your_teams');
 });
 
-it('returns the full note body via get-note accepting both bare and hash-prefixed ids', function () {
+it('returns the full note body via get-note accepting both bare and hash-prefixed codes', function () {
     $user = User::factory()->create();
     $author = User::factory()->create(['forenames' => 'Test', 'surname' => 'Author']);
-    $note = Note::factory()->create([
+    Note::factory()->create([
+        'code' => 'abq4x',
         'title' => 'The soft-delete FK trap',
-        'body' => "Some **markdown** advice.\n\nSee #12 too.",
+        'body' => "Some **markdown** advice.\n\nSee #zde77 too.",
         'user_id' => $author->id,
     ]);
 
     $bareForm = DevnotesServer::actingAs(OAuthUser::findOrFail($user->id))->tool(GetNote::class, [
-        'id' => (string) $note->id,
+        'code' => 'abq4x',
     ]);
 
     $bareForm->assertOk();
@@ -140,28 +141,28 @@ it('returns the full note body via get-note accepting both bare and hash-prefixe
     $bareForm->assertSee('Test Author');
 
     $hashForm = DevnotesServer::actingAs(OAuthUser::findOrFail($user->id))->tool(GetNote::class, [
-        'id' => "#{$note->id}",
+        'code' => '#abq4x',
     ]);
 
     $hashForm->assertOk();
-    $hashForm->assertSee('"id":'.$note->id);
+    $hashForm->assertSee('"code":"abq4x"');
     $hashForm->assertSee('The soft-delete FK trap');
 });
 
-it('returns a graceful tool error from get-note for unknown or junk ids', function () {
+it('returns a graceful tool error from get-note for unknown or junk codes', function () {
     $user = User::factory()->create();
 
-    $unknownId = DevnotesServer::actingAs(OAuthUser::findOrFail($user->id))->tool(GetNote::class, [
-        'id' => '#999',
+    $unknownCode = DevnotesServer::actingAs(OAuthUser::findOrFail($user->id))->tool(GetNote::class, [
+        'code' => '#zzzzz',
     ]);
 
-    $unknownId->assertHasErrors(['No note found with id #999']);
+    $unknownCode->assertHasErrors(['No note found with code #zzzzz']);
 
-    $junkId = DevnotesServer::actingAs(OAuthUser::findOrFail($user->id))->tool(GetNote::class, [
-        'id' => '#note-twelve',
+    $junkCode = DevnotesServer::actingAs(OAuthUser::findOrFail($user->id))->tool(GetNote::class, [
+        'code' => '#note-twelve',
     ]);
 
-    $junkId->assertHasErrors(['No note found with id #note-twelve']);
+    $junkCode->assertHasErrors(['No note found with code #note-twelve']);
 });
 
 it('rejects invalid add-note input as a tool error and creates nothing', function () {
@@ -223,6 +224,44 @@ it('creates a note owned by the calling user even when the arguments spoof a use
     expect($note->user->is($agentUser))->toBeTrue();
     expect($note->title)->toBe('Livewire modal gotcha');
     expect($note->body)->toBe('The weird thing, the cause, and the fix.');
-    $response->assertSee('"id":'.$note->id);
+    $response->assertSee('"code":"'.$note->code.'"');
     $response->assertSee('Livewire modal gotcha');
+});
+
+it('never exposes the internal note id through the tools', function () {
+    $user = User::factory()->create();
+    Note::factory()->create(['title' => 'Postgres like-vs-ilike gotcha', 'body' => 'Body words.']);
+
+    $response = DevnotesServer::actingAs(OAuthUser::findOrFail($user->id))->tool(SearchNotes::class, [
+        'query' => 'postgres',
+    ]);
+
+    $response->assertOk();
+    $response->assertDontSee('"id"');
+});
+
+it('treats an uppercase code as unknown in get-note, matching the renderer', function () {
+    // Codes are lowercase-only by ruling; sqlite compares case-sensitively so this
+    // pins the intent. Mind that MySQL's default ci collation would match instead -
+    // harmless, but this test documents which behaviour is the designed one.
+    $user = User::factory()->create();
+    Note::factory()->create(['code' => 'abq4x']);
+
+    $response = DevnotesServer::actingAs(OAuthUser::findOrFail($user->id))->tool(GetNote::class, [
+        'code' => '#ABQ4X',
+    ]);
+
+    $response->assertHasErrors(['No note found with code #ABQ4X']);
+});
+
+it('gives the graceful error when following a code to a soft-deleted note', function () {
+    $user = User::factory()->create();
+    $binnedNote = Note::factory()->create(['code' => 'zde77']);
+    $binnedNote->delete();
+
+    $response = DevnotesServer::actingAs(OAuthUser::findOrFail($user->id))->tool(GetNote::class, [
+        'code' => '#zde77',
+    ]);
+
+    $response->assertHasErrors(['No note found with code #zde77']);
 });
