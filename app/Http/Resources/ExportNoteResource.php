@@ -19,7 +19,8 @@ class ExportNoteResource extends JsonResource
     public function toArray(Request $request): array
     {
         return [
-            'id' => $this->id,
+            'ulid' => $this->ulid,
+            'code' => $this->code,
             'title' => $this->title,
             'body' => $this->body,
             'author' => [

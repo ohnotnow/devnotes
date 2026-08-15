@@ -21,14 +21,18 @@ class ImportNotes implements ShouldQueue
      */
     public int $tries = 1;
 
-    /** @var array{imported: int, skipped: array<int>, users_created: int, teams_created: int} */
-    private array $report = ['imported' => 0, 'skipped' => [], 'users_created' => 0, 'teams_created' => 0];
+    /** @var array{imported: int, skipped: array<string>, overwritten: array<string>, recoded: array<array{old: string, new: string}>, users_created: int, teams_created: int} */
+    private array $report = ['imported' => 0, 'skipped' => [], 'overwritten' => [], 'recoded' => [], 'users_created' => 0, 'teams_created' => 0];
 
+    /**
+     * @param  array<int, string>  $overwriteUlids
+     */
     public function __construct(
         public string $disk,
         public string $path,
         public bool $createUsers = true,
         public ?User $fallbackOwner = null,
+        public array $overwriteUlids = [],
     ) {}
 
     /**
@@ -36,7 +40,7 @@ class ImportNotes implements ShouldQueue
      * (new ImportNotes(...))->handle(). dispatchSync discards the
      * return value of a ShouldQueue job; queued dispatch discards it too.
      *
-     * @return array{imported: int, skipped: array<int>, users_created: int, teams_created: int}
+     * @return array{imported: int, skipped: array<string>, recoded: array<array{old: string, new: string}>, users_created: int, teams_created: int}
      */
     public function handle(): array
     {
@@ -44,8 +48,6 @@ class ImportNotes implements ShouldQueue
             foreach ($this->exportedNotes() as $exportedNote) {
                 $this->import($exportedNote);
             }
-
-            $this->resetPostgresNoteSequence();
 
             return $this->report;
         } finally {
@@ -72,16 +74,52 @@ class ImportNotes implements ShouldQueue
      */
     private function import(array $exportedNote): void
     {
-        if (Note::withTrashed()->find($exportedNote['id'])) {
-            $this->report['skipped'][] = $exportedNote['id'];
+        $existingNote = Note::withTrashed()->where('ulid', $exportedNote['ulid'])->first();
+
+        if ($existingNote && in_array($exportedNote['ulid'], $this->overwriteUlids)) {
+            $this->overwrite($existingNote, $exportedNote);
+            $this->report['overwritten'][] = $existingNote->code;
+
+            return;
+        }
+
+        if ($existingNote) {
+            $this->report['skipped'][] = $exportedNote['code'];
 
             return;
         }
 
         $owner = $this->resolveOwner($exportedNote['author']);
         $note = $this->createNote($exportedNote, $owner);
-        $this->attachTeams($note, $exportedNote['teams']);
+        $note->teams()->attach($this->resolveTeamIds($exportedNote['teams']));
         $this->report['imported']++;
+    }
+
+    /**
+     * The file's version wins wholesale - except ulid and code, which are
+     * identity: same ulid means same origin means same code.
+     *
+     * @param  array<string, mixed>  $exportedNote
+     */
+    private function overwrite(Note $note, array $exportedNote): void
+    {
+        $owner = $this->resolveOwner($exportedNote['author']);
+
+        Note::withoutSyncingToSearch(function () use ($note, $exportedNote, $owner): void {
+            $note->timestamps = false;
+            $note->forceFill([
+                'title' => $exportedNote['title'],
+                'body' => $exportedNote['body'],
+                'user_id' => $owner->id,
+                'created_at' => $exportedNote['created_at'],
+                'updated_at' => $exportedNote['updated_at'],
+                'deleted_at' => $exportedNote['deleted_at'],
+            ])->save();
+
+            $note->teams()->sync($this->resolveTeamIds($exportedNote['teams']));
+        });
+
+        $note->trashed() ? $note->unsearchable() : $note->searchable();
     }
 
     /**
@@ -120,11 +158,16 @@ class ImportNotes implements ShouldQueue
      */
     private function createNote(array $exportedNote, User $owner): Note
     {
-        $note = Note::withoutSyncingToSearch(function () use ($exportedNote, $owner): Note {
+        // A stranger already using this code gets priority; leaving ours blank
+        // lets the creating hook mint a fresh one, reported in `recoded`.
+        $codeIsTaken = Note::withTrashed()->where('code', $exportedNote['code'])->exists();
+
+        $note = Note::withoutSyncingToSearch(function () use ($exportedNote, $owner, $codeIsTaken): Note {
             $note = new Note;
             $note->timestamps = false;
             $note->forceFill([
-                'id' => $exportedNote['id'],
+                'ulid' => $exportedNote['ulid'],
+                'code' => $codeIsTaken ? null : $exportedNote['code'],
                 'title' => $exportedNote['title'],
                 'body' => $exportedNote['body'],
                 'user_id' => $owner->id,
@@ -136,6 +179,10 @@ class ImportNotes implements ShouldQueue
             return $note;
         });
 
+        if ($codeIsTaken) {
+            $this->report['recoded'][] = ['old' => $exportedNote['code'], 'new' => $note->code];
+        }
+
         if (! $note->trashed()) {
             $note->searchable();
         }
@@ -145,40 +192,18 @@ class ImportNotes implements ShouldQueue
 
     /**
      * @param  array<int, string>  $teamNames
+     * @return array<int, int>
      */
-    private function attachTeams(Note $note, array $teamNames): void
+    private function resolveTeamIds(array $teamNames): array
     {
-        foreach ($teamNames as $teamName) {
+        return collect($teamNames)->map(function (string $teamName): int {
             $team = Team::firstOrCreate(['name' => $teamName]);
 
             if ($team->wasRecentlyCreated) {
                 $this->report['teams_created']++;
             }
 
-            $note->teams()->attach($team);
-        }
-    }
-
-    /**
-     * Postgres does not advance a sequence past explicit-id inserts (MySQL and
-     * SQLite do), so without this the next created note would collide with an
-     * imported id. Raw statement agreed as a one-off convention exception.
-     */
-    private function resetPostgresNoteSequence(): void
-    {
-        if (Note::query()->getConnection()->getDriverName() !== 'pgsql') {
-            return;
-        }
-
-        $maxId = (int) Note::withTrashed()->max('id');
-
-        if ($maxId === 0) {
-            return;
-        }
-
-        Note::query()->getConnection()->statement(
-            "select setval(pg_get_serial_sequence('notes', 'id'), ?)",
-            [$maxId]
-        );
+            return $team->id;
+        })->all();
     }
 }

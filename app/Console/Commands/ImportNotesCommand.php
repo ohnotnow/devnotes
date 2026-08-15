@@ -32,7 +32,11 @@ class ImportNotesCommand extends Command
         $this->info("Imported: {$report['imported']}");
 
         if ($report['skipped'] !== []) {
-            $this->info('Skipped existing ids: '.implode(', ', $report['skipped']));
+            $this->info('Skipped existing: '.implode(', ', $report['skipped']));
+        }
+
+        foreach ($report['recoded'] as $recoded) {
+            $this->info("Re-minted: {$recoded['old']} -> {$recoded['new']}");
         }
 
         $this->info("Users created: {$report['users_created']}");

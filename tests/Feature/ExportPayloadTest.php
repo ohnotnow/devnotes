@@ -23,20 +23,23 @@ it('builds a versioned export payload matching the golden master', function () {
     $developers = Team::factory()->create(['name' => 'developers']);
     $sysadmins = Team::factory()->create(['name' => 'sysadmins']);
     Note::factory()->create([
-        'id' => 1,
+        'ulid' => '01ARZ3NDEKTSV4RRFFQ69G5FA1',
+        'code' => 'aq2b3',
         'title' => 'A teamless gotcha',
         'body' => "Runs in the whole pot.\n\nSee the [docs](https://example.com/docs) for more.",
         'user_id' => $author->id,
     ]);
     $teamNote = Note::factory()->create([
-        'id' => 4,
+        'ulid' => '01ARZ3NDEKTSV4RRFFQ69G5FA2',
+        'code' => 'abq4x',
         'title' => 'How to install the puppet client on Rocky Linux',
         'body' => "## Install\n\nAdd the puppet repo, then `dnf install puppet-agent`.",
         'user_id' => $author->id,
     ]);
     $teamNote->teams()->attach([$sysadmins->id, $developers->id]);
     $deletedNote = Note::factory()->create([
-        'id' => 7,
+        'ulid' => '01ARZ3NDEKTSV4RRFFQ69G5FA3',
+        'code' => 'zde77',
         'title' => 'A deleted note',
         'body' => 'This one was soft-deleted.',
         'user_id' => $adminAuthor->id,

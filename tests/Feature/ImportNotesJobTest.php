@@ -6,14 +6,15 @@ use App\Models\Team;
 use App\Models\User;
 use Illuminate\Support\Facades\Storage;
 
-it('recreates exported notes with their original ids, authors, teams, timestamps and deleted state', function () {
+it('recreates exported notes with their ulids, codes, authors, teams, timestamps and deleted state', function () {
     Storage::fake('local');
     Storage::disk('local')->put('imports/export.json', file_get_contents(base_path('tests/fixtures/export-v1.json')));
 
     $report = (new ImportNotes('local', 'imports/export.json'))->handle();
 
-    expect(Note::withTrashed()->orderBy('id')->pluck('id')->all())->toBe([1, 4, 7]);
-    $teamNote = Note::find(4);
+    expect(Note::withTrashed()->count())->toBe(3);
+    $teamNote = Note::where('code', 'abq4x')->sole();
+    expect($teamNote->ulid)->toBe('01ARZ3NDEKTSV4RRFFQ69G5FA2');
     expect($teamNote->title)->toBe('How to install the puppet client on Rocky Linux');
     expect($teamNote->user->email)->toBe('author@example.com');
     expect($teamNote->user->is_admin)->toBeFalse();
@@ -21,17 +22,17 @@ it('recreates exported notes with their original ids, authors, teams, timestamps
     expect($teamNote->teams->pluck('name')->sort()->values()->all())->toBe(['developers', 'sysadmins']);
     expect($teamNote->created_at->toJSON())->toBe('2026-08-15T10:00:00.000000Z');
     expect($teamNote->updated_at->toJSON())->toBe('2026-08-15T10:00:00.000000Z');
-    expect(Note::find(1)->teams)->toBeEmpty();
-    $deletedNote = Note::withTrashed()->find(7);
+    expect(Note::where('code', 'aq2b3')->sole()->teams)->toBeEmpty();
+    $deletedNote = Note::withTrashed()->where('code', 'zde77')->sole();
     expect($deletedNote->deleted_at->toJSON())->toBe('2026-08-15T10:00:00.000000Z');
     expect($deletedNote->user->is_admin)->toBeTrue();
     expect($deletedNote->teams)->toBeEmpty();
     expect(User::count())->toBe(2);
     expect(Team::orderBy('name')->pluck('name')->all())->toBe(['developers', 'sysadmins']);
-    expect($report)->toBe(['imported' => 3, 'skipped' => [], 'users_created' => 2, 'teams_created' => 2]);
+    expect($report)->toBe(['imported' => 3, 'skipped' => [], 'overwritten' => [], 'recoded' => [], 'users_created' => 2, 'teams_created' => 2]);
 });
 
-it('imports nothing on a re-import and reports every id as skipped', function () {
+it('imports nothing on a re-import and reports every code as skipped', function () {
     Storage::fake('local');
     $fixture = file_get_contents(base_path('tests/fixtures/export-v1.json'));
     Storage::disk('local')->put('imports/first.json', $fixture);
@@ -40,10 +41,52 @@ it('imports nothing on a re-import and reports every id as skipped', function ()
     Storage::disk('local')->put('imports/second.json', $fixture);
     $report = (new ImportNotes('local', 'imports/second.json'))->handle();
 
-    expect($report)->toBe(['imported' => 0, 'skipped' => [1, 4, 7], 'users_created' => 0, 'teams_created' => 0]);
+    expect($report)->toBe(['imported' => 0, 'skipped' => ['aq2b3', 'abq4x', 'zde77'], 'overwritten' => [], 'recoded' => [], 'users_created' => 0, 'teams_created' => 0]);
     expect(Note::withTrashed()->count())->toBe(3);
     expect(User::count())->toBe(2);
     expect(Team::count())->toBe(2);
+});
+
+it('overwrites a matched note from the file when its ulid is in the overwrite list', function () {
+    Storage::fake('local');
+    $fixture = file_get_contents(base_path('tests/fixtures/export-v1.json'));
+    Storage::disk('local')->put('imports/first.json', $fixture);
+    (new ImportNotes('local', 'imports/first.json'))->handle();
+    $driftedNote = Note::where('code', 'abq4x')->sole();
+    $driftedNote->update(['title' => 'Drifted title', 'body' => 'Drifted body']);
+    $driftedNote->teams()->detach();
+
+    Storage::disk('local')->put('imports/second.json', $fixture);
+    $report = (new ImportNotes('local', 'imports/second.json', overwriteUlids: ['01ARZ3NDEKTSV4RRFFQ69G5FA2']))->handle();
+
+    expect($report['overwritten'])->toBe(['abq4x']);
+    expect($report['skipped'])->toBe(['aq2b3', 'zde77']);
+    expect($report['imported'])->toBe(0);
+    $restoredNote = Note::where('code', 'abq4x')->sole();
+    expect($restoredNote->title)->toBe('How to install the puppet client on Rocky Linux');
+    expect($restoredNote->teams->pluck('name')->sort()->values()->all())->toBe(['developers', 'sysadmins']);
+    expect($restoredNote->updated_at->toJSON())->toBe('2026-08-15T10:00:00.000000Z');
+    expect($restoredNote->ulid)->toBe('01ARZ3NDEKTSV4RRFFQ69G5FA2');
+    expect(Note::withTrashed()->count())->toBe(3);
+});
+
+it('re-mints the code of a genuinely new note whose code is already taken', function () {
+    Storage::fake('local');
+    Storage::disk('local')->put('imports/export.json', file_get_contents(base_path('tests/fixtures/export-v1.json')));
+    $localStranger = Note::factory()->create(['code' => 'abq4x', 'title' => 'A local stranger']);
+
+    $report = (new ImportNotes('local', 'imports/export.json'))->handle();
+
+    expect(Note::withTrashed()->count())->toBe(4);
+    expect($report['imported'])->toBe(3);
+    expect($report['recoded'])->toHaveCount(1);
+    expect($report['recoded'][0]['old'])->toBe('abq4x');
+    expect($report['recoded'][0]['new'])->not->toBe('abq4x');
+    $incomingNote = Note::where('code', $report['recoded'][0]['new'])->sole();
+    expect($incomingNote->title)->toBe('How to install the puppet client on Rocky Linux');
+    expect($incomingNote->ulid)->toBe('01ARZ3NDEKTSV4RRFFQ69G5FA2');
+    expect($localStranger->fresh()->title)->toBe('A local stranger');
+    expect($localStranger->fresh()->code)->toBe('abq4x');
 });
 
 it('assigns unknown-author notes to the fallback owner instead of creating users when told not to', function () {
@@ -56,25 +99,42 @@ it('assigns unknown-author notes to the fallback owner instead of creating users
 
     expect(User::count())->toBe(2);
     expect($report['users_created'])->toBe(0);
-    expect(Note::find(1)->user->email)->toBe('author@example.com');
-    expect(Note::find(4)->user->email)->toBe('author@example.com');
-    expect(Note::withTrashed()->find(7)->user->email)->toBe('importer@example.com');
+    expect(Note::where('code', 'aq2b3')->sole()->user->email)->toBe('author@example.com');
+    expect(Note::where('code', 'abq4x')->sole()->user->email)->toBe('author@example.com');
+    expect(Note::withTrashed()->where('code', 'zde77')->sole()->user->email)->toBe('importer@example.com');
 });
 
-it('makes live imported notes searchable but not trashed ones', function () {
+it('round-trips the golden master byte-exactly through import and export', function () {
+    Storage::fake('local');
+    Storage::disk('local')->put('imports/export.json', file_get_contents(base_path('tests/fixtures/export-v1.json')));
+
+    (new ImportNotes('local', 'imports/export.json'))->handle();
+    $reExported = json_encode(Note::exportPayload(), Note::EXPORT_JSON_FLAGS);
+
+    expect($reExported)->toBe(file_get_contents(base_path('tests/fixtures/export-v1.json')));
+});
+
+it('imports live notes findable in search and trashed ones not', function () {
+    // Under the test-pinned collection driver (and the shipped database driver)
+    // this is really pinning that deleted_at came across - those engines query
+    // the live table, so the job's withoutSyncingToSearch guard is unexercisable
+    // here. The guard exists for the meilisearch opt-in (devnotes-gbHJd.6.2).
     Storage::fake('local');
     Storage::disk('local')->put('imports/export.json', file_get_contents(base_path('tests/fixtures/export-v1.json')));
 
     (new ImportNotes('local', 'imports/export.json'))->handle();
 
-    expect(Note::search('teamless')->get()->pluck('id')->all())->toBe([1]);
+    expect(Note::search('teamless')->get()->pluck('code')->all())->toBe(['aq2b3']);
     expect(Note::search('soft-deleted')->get())->toBeEmpty();
 });
 
 it('deletes its stored working copy on success and on failure', function () {
     Storage::fake('local');
     Storage::disk('local')->put('imports/good.json', file_get_contents(base_path('tests/fixtures/export-v1.json')));
-    Storage::disk('local')->put('imports/bad.json', json_encode(['version' => 99, 'notes' => []]));
+    Storage::disk('local')->put('imports/bad.json', json_encode([
+        'version' => 99,
+        'notes' => [['ulid' => '01ARZ3NDEKTSV4RRFFQ69G5FA9', 'code' => 'never', 'title' => 'Should not land', 'body' => 'x']],
+    ]));
 
     (new ImportNotes('local', 'imports/good.json'))->handle();
     expect(fn () => (new ImportNotes('local', 'imports/bad.json'))->handle())
@@ -82,4 +142,5 @@ it('deletes its stored working copy on success and on failure', function () {
 
     Storage::disk('local')->assertMissing('imports/good.json');
     Storage::disk('local')->assertMissing('imports/bad.json');
+    expect(Note::withTrashed()->where('code', 'never')->exists())->toBeFalse();
 });
