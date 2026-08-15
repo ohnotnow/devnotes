@@ -41,13 +41,16 @@ it('scopes search to the token user\'s teams and widens with broader', function 
     $sysadminNote->teams()->attach($sysadmins);
 
     $scoped = $this->getJson('/api/v1/notes?search=docker');
+    $scoped->assertSuccessful();
     expect($scoped->json('data'))->toHaveCount(1);
     expect($scoped->json('data.0.id'))->toBe($developerNote->id);
 
     $broader = $this->getJson('/api/v1/notes?search=docker&broader=1');
-    expect(collect($broader->json('data'))->pluck('id'))->toContain($developerNote->id, $sysadminNote->id);
+    $broader->assertSuccessful();
+    expect(collect($broader->json('data'))->pluck('id')->all())->toEqualCanonicalizing([$developerNote->id, $sysadminNote->id]);
 
     $browsing = $this->getJson('/api/v1/notes');
+    $browsing->assertSuccessful();
     expect($browsing->json('data'))->toHaveCount(2);
 });
 

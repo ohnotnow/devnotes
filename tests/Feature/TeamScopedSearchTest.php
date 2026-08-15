@@ -4,31 +4,40 @@ use App\Models\Note;
 use App\Models\Team;
 use App\Models\User;
 
-it('hides another team\'s matching note from a scoped search', function () {
+it('scopes search to subscribed teams only', function () {
+    $developers = Team::factory()->create(['name' => 'developers']);
+    $frontend = Team::factory()->create(['name' => 'frontend']);
+    $sysadmins = Team::factory()->create(['name' => 'sysadmins']);
+    $lapsed = Team::factory()->create(['name' => 'lapsed']);
+    $developer = User::factory()->create();
+    $developer->teams()->attach([$developers->id, $frontend->id, $lapsed->id]);
+    $developer->teams()->updateExistingPivot($lapsed->id, ['subscribed' => false]);
+    $developerNote = Note::factory()->create(['title' => 'Docker layer cache misses']);
+    $developerNote->teams()->attach($developers);
+    $frontendNote = Note::factory()->create(['title' => 'Docker vite dev-server networking']);
+    $frontendNote->teams()->attach($frontend);
+    $sysadminNote = Note::factory()->create(['title' => 'Docker daemon log rotation']);
+    $sysadminNote->teams()->attach($sysadmins);
+    $lapsedNote = Note::factory()->create(['title' => 'Docker swarm leftovers']);
+    $lapsedNote->teams()->attach($lapsed);
+
+    $results = Note::searchScoped($developer, 'docker')->get();
+
+    expect($results->pluck('id')->all())->toEqualCanonicalizing([$developerNote->id, $frontendNote->id]);
+});
+
+it('shows teamless notes in a scoped search that excludes other teams', function () {
     $developers = Team::factory()->create(['name' => 'developers']);
     $sysadmins = Team::factory()->create(['name' => 'sysadmins']);
     $developer = User::factory()->create();
     $developer->teams()->attach($developers);
-    $developerNote = Note::factory()->create(['title' => 'Docker layer cache misses']);
-    $developerNote->teams()->attach($developers);
+    $teamlessNote = Note::factory()->create(['title' => 'Docker compose healthcheck gotcha']);
     $sysadminNote = Note::factory()->create(['title' => 'Docker daemon log rotation']);
     $sysadminNote->teams()->attach($sysadmins);
 
     $results = Note::searchScoped($developer, 'docker')->get();
 
-    expect($results->pluck('id'))->toContain($developerNote->id);
-    expect($results->pluck('id'))->not->toContain($sysadminNote->id);
-});
-
-it('shows teamless notes in every scoped search', function () {
-    $developers = Team::factory()->create(['name' => 'developers']);
-    $developer = User::factory()->create();
-    $developer->teams()->attach($developers);
-    $teamlessNote = Note::factory()->create(['title' => 'Docker compose healthcheck gotcha']);
-
-    $results = Note::searchScoped($developer, 'docker')->get();
-
-    expect($results->pluck('id'))->toContain($teamlessNote->id);
+    expect($results->pluck('id')->all())->toEqualCanonicalizing([$teamlessNote->id]);
 });
 
 it('searches the whole pot for a user with no subscriptions', function () {
@@ -39,7 +48,7 @@ it('searches the whole pot for a user with no subscriptions', function () {
 
     $results = Note::searchScoped($userWithoutTeams, 'docker')->get();
 
-    expect($results->pluck('id'))->toContain($sysadminNote->id);
+    expect($results->pluck('id')->all())->toEqualCanonicalizing([$sysadminNote->id]);
 });
 
 it('returns cross-team matches when broader', function () {
@@ -47,14 +56,16 @@ it('returns cross-team matches when broader', function () {
     $sysadmins = Team::factory()->create(['name' => 'sysadmins']);
     $developer = User::factory()->create();
     $developer->teams()->attach($developers);
+    $developerNote = Note::factory()->create(['title' => 'Docker layer cache misses']);
+    $developerNote->teams()->attach($developers);
     $sysadminNote = Note::factory()->create(['title' => 'Docker daemon log rotation']);
     $sysadminNote->teams()->attach($sysadmins);
 
     $scoped = Note::searchScoped($developer, 'docker')->get();
     $broader = Note::searchScoped($developer, 'docker', broader: true)->get();
 
-    expect($scoped->pluck('id'))->not->toContain($sysadminNote->id);
-    expect($broader->pluck('id'))->toContain($sysadminNote->id);
+    expect($scoped->pluck('id')->all())->toEqualCanonicalizing([$developerNote->id]);
+    expect($broader->pluck('id')->all())->toEqualCanonicalizing([$developerNote->id, $sysadminNote->id]);
 });
 
 it('defaults a note\'s teams to the author\'s note defaults', function () {
@@ -78,6 +89,8 @@ it('assigns exactly the explicit teams when given', function () {
     $note = Note::factory()->create(['user_id' => $author->id]);
 
     $note->assignTeams([$sysadmins->id]);
-
     expect($note->teams()->pluck('teams.id')->all())->toBe([$sysadmins->id]);
+
+    $note->assignTeams([]);
+    expect($note->teams()->count())->toBe(0);
 });
