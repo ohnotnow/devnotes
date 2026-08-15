@@ -61,7 +61,8 @@
         </flux:table.rows>
     </flux:table>
 
-    <flux:modal name="token-create" variant="flyout" aria-label="New API token" class="md:w-96">
+    {{-- No aria-label on flux:modal - see note-form.blade.php for why. --}}
+    <flux:modal name="token-create" variant="flyout" class="md:w-96">
         <div class="space-y-6">
             <div>
                 <flux:heading size="lg" level="2">New API token</flux:heading>

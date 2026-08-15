@@ -16,7 +16,8 @@
         </flux:modal.trigger>
     </div>
 
-    <flux:modal name="confirm-note-delete" aria-label="Confirm note deletion" class="min-w-[22rem]">
+    {{-- No aria-label on flux:modal - see note-form.blade.php for why. --}}
+    <flux:modal name="confirm-note-delete" class="min-w-[22rem]">
         <div class="space-y-6">
             <div>
                 <flux:heading size="lg" level="2">Delete note #{{ $note->id }}?</flux:heading>
