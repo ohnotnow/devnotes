@@ -1,6 +1,6 @@
 # devnotes
 
-A scrappy "wiki meets GitHub gists" for our small dev team: tiny markdown notes capturing gotchas and lessons, findable later. One Laravel app; the web UI, a Go CLI (sibling repo `../devnotes-cli`), and an MCP server (planned) are all clients of the same `/api/v1` + Sanctum tokens. Frictionless capture is the thing to protect; recall matters as much as capture.
+A scrappy "wiki meets GitHub gists" for our small dev team: tiny markdown notes capturing gotchas and lessons, findable later. One Laravel app; the web UI, a Go CLI (sibling repo `../devnotes-cli`), and the MCP server (live, Passport OAuth) are all clients of the same notes data - the first two via `/api/v1` + Sanctum tokens. Frictionless capture is the thing to protect; recall matters as much as capture.
 
 ## Get oriented (do this before deciding anything)
 

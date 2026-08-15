@@ -31,10 +31,21 @@ config/                 sso.php (access gate), mcp.php (OAuth redirect rules)
 
 ```
 User 1 ──→ * Note   (Note soft-deletes; user_id survives; #id links keep resolving)
+User * ──→ * Team   (team_user pivot: subscribed + note_default booleans)
+Note * ──→ * Team   (note_team pivot)
 OAuthUser = the same users table through a different lens (Passport only)
 ```
 
 Models use PHP attribute style (`#[Fillable]`), not `$fillable` arrays. `Note::rendered_body` converts markdown via CommonMark with `html_input => escape`, and a mention extension turns `#123` into a link to that note. Notes are wiki-style: any authenticated user can edit or delete any note. Users are the gate; there are no per-note permissions.
+
+### Teams scope search recall, never visibility
+
+Design and rejected alternatives live in ant ADR devnotes-sXVTv. The whole feature is two pivots plus a filter:
+
+- `Note::searchScoped($user, $query, $broader)` is the single scoping implementation, used by the API, the MCP tool, and the web index. It shows notes sharing a subscribed team plus teamless notes; `broader` (or a user with no subscriptions) means the whole pot. Its query callback carries the eager loads - never chain `->query()` onto it, Scout's `Builder::query()` replaces the callback rather than composing, which silently drops the scoping.
+- `Note::assignTeams($ids)` attaches explicit teams or the author's `defaultNoteTeams` when given null - create paths only; update paths sync explicitly.
+- `User::syncTeamPreferences($readIds, $defaultIds)` reconciles the pivot from the two checkbox groups; a team in neither list loses its row.
+- Browsing, note show pages, and `#id` resolution are never scoped. Deleting a team cascades its pivot rows, so its notes join the whole pot - nothing is ever hidden.
 
 ## The auth story (the fiddly bit)
 
@@ -68,7 +79,7 @@ Passport's guard constructs its crypto keys even to reject a tokenless request, 
 
 ## MCP server
 
-`DevnotesServer` carries a short instructions block (search before debugging, capture gotchas, write for a stranger) and three tools with token-frugal returns: `search-notes` gives id/title/200-char snippet (max 20 hits), `get-note` gives the full markdown and accepts `49` or `#49`, `add-note` validates with the same rules as the API and returns `{id, title}`. Unknown ids return a tool error pointing at `search-notes`, not an exception.
+`DevnotesServer` carries a short instructions block (search before debugging, capture gotchas, write for a stranger, retry scoped searches with broader) and three tools with token-frugal returns: `search-notes` gives id/title/200-char snippet (max 20 hits) scoped to the caller's teams by default - scoped responses carry a retry-with-`broader: true` hint, and broader responses label out-of-team rows `from_outside_your_teams` - `get-note` gives the full markdown and accepts `49` or `#49`, `add-note` validates with the same rules as the API, tags the note with team names or the author's defaults, and returns `{id, title}`. Unknown ids return a tool error pointing at `search-notes`, not an exception. Tools resolve the caller's `App\Models\User` via `User::findOrFail($request->user()->id)` - same table, same ids as OAuthUser.
 
 Operational quirks learned the hard way: laravel/mcp 0.9 speaks protocol revisions up to 2025-11-25 (clients negotiate down), and MCP clients cache both the tool list and the instructions text at connection time. After deploying new or changed tools, clients need a manual reconnect; changed instructions may need the connector removed and re-added.
 
@@ -79,7 +90,9 @@ Operational quirks learned the hard way: laravel/mcp 0.9 speaks protocol revisio
 | `/` | NotesIndex (Livewire) | auth |
 | `/notes/{note}` | NoteShow | auth |
 | `/settings/api-tokens` | ApiTokens | auth |
+| `/settings/teams` | TeamSettings | auth |
 | `/admin/users` | Admin/Users | `can:admin` |
+| `/admin/teams` | Admin/Teams | `can:admin` |
 | `/api/v1/notes` (apiResource) | Api/V1/NoteController | `auth:sanctum` |
 | `/mcp` | DevnotesServer | `auth:api` (Passport) |
 | `/.well-known/oauth-*`, `/oauth/register` | laravel/mcp | public (by spec) |

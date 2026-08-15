@@ -50,7 +50,7 @@ The MCP endpoint lives at `/mcp` and authenticates with OAuth 2.1. The client di
 claude mcp add --transport http devnotes https://your-devnotes-host/mcp
 ```
 
-Agents get three tools: `search-notes` (id, title and a short snippet per hit), `get-note` (the full markdown, accepts `49` or `#49`), and `add-note` (returns the new note's id). The server's instructions nudge agents to search before debugging from scratch and to suggest capturing a note when a session solves something gnarly.
+Agents get three tools: `search-notes` (id, title and a short snippet per hit, scoped to your teams with a `broader: true` escape hatch), `get-note` (the full markdown, accepts `49` or `#49`), and `add-note` (returns the new note's id, tagging the note with your default teams or the team names you pass). The server's instructions nudge agents to search before debugging from scratch and to suggest capturing a note when a session solves something gnarly.
 
 The OAuth keys come from `php artisan passport:keys` (run it once per environment). While you are developing, `config/mcp.php` allows any redirect domain; lock that down before putting the app anywhere public.
 
@@ -59,6 +59,10 @@ The OAuth keys come from `php artisan passport:keys` (run it once per environmen
 Search is [Laravel Scout](https://laravel.com/docs/scout). The example env is set up for meilisearch, but the `database` driver works fine for a small install with no extra moving parts, just set `SCOUT_DRIVER=database`.
 
 On MySQL, MariaDB, and Postgres the `database` driver uses a full-text index on titles and bodies, so a multi-word search matches on words in any order, best matches first - no need to guess an exact phrase. Quirks worth knowing: MySQL skips words shorter than three characters and common stopwords; Postgres requires every word to appear and stems them using its english language config.
+
+## Teams
+
+Still one pot, but with tuned recall for mixed departments: notes and people can carry teams, and search shows your teams' notes plus any note with no team at all. Nothing is ever hidden - browsing, note pages, and `#id` references ignore teams entirely, and anyone can still read and edit everything. When a scoped search misses, every surface has a broader switch: a toggle next to the web search box, `broader: true` on the MCP tool, `?broader=1` on the API. New notes default to their author's teams, overridable per note. You tune your own subscriptions at `/settings/teams`; admins manage teams and memberships at `/admin/teams`. If you never create a team, nothing changes.
 
 ## Running tests
 
