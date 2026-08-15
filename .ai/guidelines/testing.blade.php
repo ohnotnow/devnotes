@@ -62,7 +62,7 @@ You may also have the `test-debug` agent available.  Use it if you're stuck, but
 
 ### Running tests
 
-`php artisan test --compact` for the full suite.  Shows full output for failures but keeps passing tests quiet, which saves context window space.
+`php artisan test --parallel --tia` for the full suite.  Shows full output for failures but keeps passing tests quiet, which saves context window space.  `tia` is a new feature of pest version 5 that uses a call graph to only run tests for code that has changed (using the php `pcov` extension under the hood).
 
 `--filter=TestName` when you're working on a specific test file.
 
