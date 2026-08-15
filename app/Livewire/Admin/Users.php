@@ -2,6 +2,7 @@
 
 namespace App\Livewire\Admin;
 
+use App\Models\Team;
 use App\Models\User;
 use Flux\Flux;
 use Illuminate\Support\Str;
@@ -10,6 +11,10 @@ use Livewire\Component;
 class Users extends Component
 {
     public string $email = '';
+
+    public array $selectedTeamIds = [];
+
+    public ?User $editingTeamsUser = null;
 
     public ?User $deletingUser = null;
 
@@ -21,9 +26,11 @@ class Users extends Component
 
         $this->validate([
             'email' => ['required', 'email', 'unique:users,email'],
+            'selectedTeamIds' => ['array'],
+            'selectedTeamIds.*' => ['exists:teams,id'],
         ]);
 
-        User::create([
+        $newUser = User::create([
             'email' => $this->email,
             'username' => '',
             'surname' => '',
@@ -31,10 +38,40 @@ class Users extends Component
             'is_staff' => true,
             'password' => bcrypt(Str::random(64)),
         ]);
+        $teamIds = array_map('intval', $this->selectedTeamIds);
+        $newUser->syncTeamPreferences($teamIds, $teamIds);
 
-        $this->reset('email');
+        $this->reset('email', 'selectedTeamIds');
         Flux::modal('user-add')->close();
         Flux::toast('Added - their details will fill in when they first log in', variant: 'success');
+    }
+
+    public function openTeams(int $userId): void
+    {
+        $this->editingTeamsUser = User::findOrFail($userId);
+        $this->selectedTeamIds = $this->editingTeamsUser->teams()->pluck('teams.id')->all();
+        $this->resetValidation();
+
+        Flux::modal('user-teams')->show();
+    }
+
+    public function saveTeams(): void
+    {
+        if ($this->editingTeamsUser === null) {
+            return;
+        }
+
+        $this->validate([
+            'selectedTeamIds' => ['array'],
+            'selectedTeamIds.*' => ['exists:teams,id'],
+        ]);
+
+        $teamIds = array_map('intval', $this->selectedTeamIds);
+        $this->editingTeamsUser->syncTeamPreferences($teamIds, $teamIds);
+
+        $this->reset('editingTeamsUser', 'selectedTeamIds');
+        Flux::modal('user-teams')->close();
+        Flux::toast('Teams updated', variant: 'success');
     }
 
     public function toggleAdmin(int $userId): void
@@ -85,7 +122,8 @@ class Users extends Component
     public function render()
     {
         return view('livewire.admin.users', [
-            'users' => User::orderBy('surname')->orderBy('email')->withCount('notes')->get(),
+            'users' => User::orderBy('surname')->orderBy('email')->withCount('notes')->with('teams')->get(),
+            'teams' => Team::orderBy('name')->get(),
         ]);
     }
 }

@@ -14,6 +14,7 @@
         <flux:table.columns>
             <flux:table.column>Person</flux:table.column>
             <flux:table.column>Username</flux:table.column>
+            <flux:table.column>Teams</flux:table.column>
             <flux:table.column>Notes</flux:table.column>
             <flux:table.column>Admin</flux:table.column>
             <flux:table.column></flux:table.column>
@@ -29,6 +30,20 @@
                         @endif
                     </flux:table.cell>
                     <flux:table.cell>{{ $user->username !== '' ? $user->username : 'awaiting first login' }}</flux:table.cell>
+                    <flux:table.cell>
+                        <button
+                            type="button"
+                            class="cursor-pointer"
+                            wire:click="openTeams({{ $user->id }})"
+                            aria-label="Edit teams for {{ $user->full_name !== '' ? $user->full_name : $user->email }}"
+                        >
+                            @forelse ($user->teams as $team)
+                                <flux:badge color="sky" size="sm" inset="top bottom">{{ $team->name }}</flux:badge>
+                            @empty
+                                <flux:badge color="zinc" size="sm" inset="top bottom">no teams</flux:badge>
+                            @endforelse
+                        </button>
+                    </flux:table.cell>
                     <flux:table.cell>{{ $user->notes_count }}</flux:table.cell>
                     <flux:table.cell>
                         @if ($user->is(auth()->user()))
@@ -65,9 +80,39 @@
 
             <flux:input wire:model="email" label="Email" type="email" placeholder="someone@example.ac.uk" autofocus />
 
+            @if ($teams->isNotEmpty())
+                <flux:checkbox.group wire:model="selectedTeamIds" label="Teams" description="Their search follows these teams, and their notes default here. They can fine-tune it themselves later.">
+                    @foreach ($teams as $team)
+                        <flux:checkbox :value="$team->id" :label="$team->name" wire:key="add-team-{{ $team->id }}" />
+                    @endforeach
+                </flux:checkbox.group>
+            @endif
+
             <div class="flex justify-end gap-3">
                 <flux:button x-on:click="$flux.modal('user-add').close()">Cancel</flux:button>
                 <flux:button variant="primary" wire:click="add">Add</flux:button>
+            </div>
+        </div>
+    </flux:modal>
+
+    <flux:modal name="user-teams" variant="flyout" aria-label="Edit user teams" class="md:w-96">
+        <div class="space-y-6">
+            <div>
+                <flux:heading size="lg" level="2">Teams for {{ $editingTeamsUser?->full_name !== '' ? $editingTeamsUser?->full_name : $editingTeamsUser?->email }}</flux:heading>
+                <flux:text class="mt-2">Saving here resets their per-team fine-tuning to the simple case: read and post to every ticked team.</flux:text>
+            </div>
+
+            @if ($teams->isNotEmpty())
+                <flux:checkbox.group wire:model="selectedTeamIds" label="Teams" aria-label="Teams for this user">
+                    @foreach ($teams as $team)
+                        <flux:checkbox :value="$team->id" :label="$team->name" wire:key="edit-team-{{ $team->id }}" />
+                    @endforeach
+                </flux:checkbox.group>
+            @endif
+
+            <div class="flex justify-end gap-3">
+                <flux:button x-on:click="$flux.modal('user-teams').close()">Cancel</flux:button>
+                <flux:button variant="primary" wire:click="saveTeams">Save teams</flux:button>
             </div>
         </div>
     </flux:modal>

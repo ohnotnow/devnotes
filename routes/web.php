@@ -1,5 +1,6 @@
 <?php
 
+use App\Livewire\Admin\Teams;
 use App\Livewire\Admin\Users;
 use App\Livewire\ApiTokens;
 use App\Livewire\NoteShow;
@@ -15,4 +16,5 @@ Route::middleware('auth')->group(function () {
     Route::get('/settings/teams', TeamSettings::class)->name('team-settings');
 
     Route::get('/admin/users', Users::class)->name('admin.users')->middleware('can:admin');
+    Route::get('/admin/teams', Teams::class)->name('admin.teams')->middleware('can:admin');
 });

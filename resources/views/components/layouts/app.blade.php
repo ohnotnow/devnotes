@@ -28,6 +28,7 @@
                     @can('admin')
                         <flux:separator class="my-2" />
                         <flux:sidebar.item icon="users" :href="route('admin.users')" wire:navigate>Users</flux:sidebar.item>
+                        <flux:sidebar.item icon="user-group" :href="route('admin.teams')" wire:navigate>Teams</flux:sidebar.item>
                     @endcan
                 </flux:sidebar.nav>
                 <flux:sidebar.spacer />

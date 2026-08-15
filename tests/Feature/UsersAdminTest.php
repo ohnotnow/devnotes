@@ -2,6 +2,7 @@
 
 use App\Livewire\Admin\Users;
 use App\Models\Note;
+use App\Models\Team;
 use App\Models\User;
 use Livewire\Livewire;
 
@@ -32,6 +33,42 @@ it('adds a stub user by email and rejects blanks and duplicates', function () {
         ->assertHasErrors(['email']);
 
     expect(User::count())->toBe(3);
+});
+
+it('adds a user with their teams subscribed and set as note defaults', function () {
+    $admin = User::factory()->create(['is_admin' => true]);
+    $developers = Team::factory()->create(['name' => 'developers']);
+    Team::factory()->create(['name' => 'sysadmins']);
+
+    Livewire::actingAs($admin)
+        ->test(Users::class)
+        ->set('email', 'newbie@example.test')
+        ->set('selectedTeamIds', [$developers->id])
+        ->call('add')
+        ->assertHasNoErrors();
+
+    $newUser = User::where('email', 'newbie@example.test')->sole();
+    expect($newUser->subscribedTeams()->pluck('teams.id')->all())->toBe([$developers->id]);
+    expect($newUser->defaultNoteTeams()->pluck('teams.id')->all())->toBe([$developers->id]);
+});
+
+it('edits an existing user\'s teams from the table', function () {
+    $admin = User::factory()->create(['is_admin' => true]);
+    $developers = Team::factory()->create(['name' => 'developers']);
+    $sysadmins = Team::factory()->create(['name' => 'sysadmins']);
+    $mover = User::factory()->create();
+    $mover->teams()->attach($developers);
+
+    Livewire::actingAs($admin)
+        ->test(Users::class)
+        ->call('openTeams', $mover->id)
+        ->assertSet('selectedTeamIds', [$developers->id])
+        ->set('selectedTeamIds', [$sysadmins->id])
+        ->call('saveTeams')
+        ->assertHasNoErrors();
+
+    expect($mover->refresh()->subscribedTeams()->pluck('teams.id')->all())->toBe([$sysadmins->id]);
+    expect($mover->defaultNoteTeams()->pluck('teams.id')->all())->toBe([$sysadmins->id]);
 });
 
 it('toggles admin status both ways but never your own', function () {
