@@ -15,6 +15,9 @@ class NotesIndex extends Component
     #[Url]
     public $search = '';
 
+    #[Url]
+    public $broader = false;
+
     #[On('note-saved')]
     public function noteSaved(): void
     {
@@ -26,11 +29,16 @@ class NotesIndex extends Component
         $this->resetPage();
     }
 
+    public function updatedBroader(): void
+    {
+        $this->resetPage();
+    }
+
     public function render()
     {
         return view('livewire.notes-index', [
             'notes' => $this->search
-                ? Note::search($this->search)->query(fn ($query) => $query->with('user'))->paginate(20)
+                ? Note::searchScoped(auth()->user(), $this->search, filter_var($this->broader, FILTER_VALIDATE_BOOL))->paginate(20)
                 : Note::with('user')->latest()->paginate(20),
         ]);
     }

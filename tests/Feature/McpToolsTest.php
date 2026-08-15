@@ -82,6 +82,8 @@ it('labels out-of-team hits under broader and drops the hint', function () {
     $developerNote->teams()->attach($developers);
     $sysadminNote = Note::factory()->create(['title' => 'Docker daemon log rotation']);
     $sysadminNote->teams()->attach($sysadmins);
+    $sharedNote = Note::factory()->create(['title' => 'Docker registry auth expiry']);
+    $sharedNote->teams()->attach([$developers->id, $sysadmins->id]);
     Note::factory()->create(['title' => 'Docker compose healthcheck gotcha']);
 
     $response = DevnotesServer::actingAs(OAuthUser::findOrFail($agentUser->id))->tool(SearchNotes::class, [
@@ -98,6 +100,24 @@ it('labels out-of-team hits under broader and drops the hint', function () {
     $response->assertSee('"teams":["sysadmins"],"from_outside_your_teams":true');
     $response->assertSee('"teams":["developers"]}');
     $response->assertSee('"teams":[]}');
+    // A note sharing ANY team with the caller is not from outside their teams.
+    $response->assertSee('"teams":["developers","sysadmins"]}');
+});
+
+it('labels nothing under broader for a caller with no teams', function () {
+    $sysadmins = Team::factory()->create(['name' => 'sysadmins']);
+    $agentUser = User::factory()->create();
+    $sysadminNote = Note::factory()->create(['title' => 'Docker daemon log rotation']);
+    $sysadminNote->teams()->attach($sysadmins);
+
+    $response = DevnotesServer::actingAs(OAuthUser::findOrFail($agentUser->id))->tool(SearchNotes::class, [
+        'query' => 'docker',
+        'broader' => true,
+    ]);
+
+    $response->assertOk();
+    $response->assertSee('Docker daemon log rotation');
+    $response->assertDontSee('from_outside_your_teams');
 });
 
 it('returns the full note body via get-note accepting both bare and hash-prefixed ids', function () {

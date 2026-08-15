@@ -2,6 +2,7 @@
 
 use App\Livewire\NoteForm;
 use App\Models\Note;
+use App\Models\Team;
 use App\Models\User;
 use Livewire\Livewire;
 
@@ -45,6 +46,60 @@ it('lets any user edit any note without stealing authorship', function () {
     expect($note->title)->toBe('Old title, typo fixed');
     expect($note->user->is($author))->toBeTrue();
     expect(Note::count())->toBe(1);
+});
+
+it('pre-checks the author\'s default teams on create and saves the selection', function () {
+    $developers = Team::factory()->create(['name' => 'developers']);
+    $sysadmins = Team::factory()->create(['name' => 'sysadmins']);
+    $author = User::factory()->create();
+    $author->teams()->attach($developers);
+
+    Livewire::actingAs($author)
+        ->test(NoteForm::class)
+        ->call('openCreate')
+        ->assertSet('selectedTeamIds', [$developers->id])
+        ->set('editing.title', 'A note for the sysadmins too')
+        ->set('editing.body', 'Body.')
+        ->set('selectedTeamIds', [$developers->id, $sysadmins->id])
+        ->call('save')
+        ->assertHasNoErrors();
+
+    expect(Note::sole()->teams()->pluck('teams.id')->all())->toEqualCanonicalizing([$developers->id, $sysadmins->id]);
+});
+
+it('reflects and syncs a note\'s teams on edit', function () {
+    $developers = Team::factory()->create(['name' => 'developers']);
+    $sysadmins = Team::factory()->create(['name' => 'sysadmins']);
+    $editor = User::factory()->create();
+    $note = Note::factory()->create();
+    $note->teams()->attach($developers);
+
+    Livewire::actingAs($editor)
+        ->test(NoteForm::class)
+        ->call('openEdit', $note->id)
+        ->assertSet('selectedTeamIds', [$developers->id])
+        ->set('selectedTeamIds', [$sysadmins->id])
+        ->call('save')
+        ->assertHasNoErrors();
+
+    expect($note->teams()->pluck('teams.id')->all())->toBe([$sysadmins->id]);
+});
+
+it('saves a deliberately teamless note when every box is unchecked', function () {
+    $developers = Team::factory()->create(['name' => 'developers']);
+    $author = User::factory()->create();
+    $author->teams()->attach($developers);
+
+    Livewire::actingAs($author)
+        ->test(NoteForm::class)
+        ->call('openCreate')
+        ->set('editing.title', 'Whole-pot note')
+        ->set('editing.body', 'Body.')
+        ->set('selectedTeamIds', [])
+        ->call('save')
+        ->assertHasNoErrors();
+
+    expect(Note::sole()->teams()->count())->toBe(0);
 });
 
 it('creates a note owned by the logged-in user', function () {

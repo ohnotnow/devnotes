@@ -3,6 +3,7 @@
 namespace App\Livewire;
 
 use App\Models\Note;
+use App\Models\Team;
 use Flux\Flux;
 use Livewire\Attributes\On;
 use Livewire\Component;
@@ -15,6 +16,8 @@ class NoteForm extends Component
         'body' => '',
     ];
 
+    public array $selectedTeamIds = [];
+
     protected array $validationAttributes = [
         'editing.title' => 'title',
         'editing.body' => 'note',
@@ -24,6 +27,7 @@ class NoteForm extends Component
     public function openCreate(): void
     {
         $this->reset('editing');
+        $this->selectedTeamIds = auth()->user()->defaultNoteTeams()->pluck('teams.id')->all();
         $this->resetValidation();
 
         Flux::modal('note-editor')->show();
@@ -32,7 +36,9 @@ class NoteForm extends Component
     #[On('note-editor:edit')]
     public function openEdit(int $id): void
     {
-        $this->editing = Note::findOrFail($id)->only(['id', 'title', 'body']);
+        $note = Note::findOrFail($id);
+        $this->editing = $note->only(['id', 'title', 'body']);
+        $this->selectedTeamIds = $note->teams()->pluck('teams.id')->all();
         $this->resetValidation();
 
         Flux::modal('note-editor')->show();
@@ -43,6 +49,8 @@ class NoteForm extends Component
         $this->validate([
             'editing.title' => ['required', 'string', 'max:255'],
             'editing.body' => ['required', 'string'],
+            'selectedTeamIds' => ['array'],
+            'selectedTeamIds.*' => ['exists:teams,id'],
         ]);
 
         $note = Note::findOrNew($this->editing['id']);
@@ -51,6 +59,7 @@ class NoteForm extends Component
             $note->user_id = auth()->id();
         }
         $note->save();
+        $note->teams()->sync($this->selectedTeamIds);
 
         Flux::modal('note-editor')->close();
         Flux::toast("Saved note #{$note->id}", variant: 'success');
@@ -59,6 +68,8 @@ class NoteForm extends Component
 
     public function render()
     {
-        return view('livewire.note-form');
+        return view('livewire.note-form', [
+            'teams' => Team::orderBy('name')->get(),
+        ]);
     }
 }

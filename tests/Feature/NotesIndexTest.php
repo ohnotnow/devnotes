@@ -2,6 +2,7 @@
 
 use App\Livewire\NotesIndex;
 use App\Models\Note;
+use App\Models\Team;
 use App\Models\User;
 use Livewire\Livewire;
 
@@ -17,6 +18,73 @@ it('filters notes by search term across title and body', function () {
         ->assertSee('Postgres ilike surprise')
         ->assertSee('Sequences after restore')
         ->assertDontSee('Livewire modal focus gotcha');
+});
+
+it('scopes search to the viewer\'s teams with a toggle to search all teams', function () {
+    $developers = Team::factory()->create(['name' => 'developers']);
+    $sysadmins = Team::factory()->create(['name' => 'sysadmins']);
+    $developer = User::factory()->create();
+    $developer->teams()->attach($developers);
+    $developerNote = Note::factory()->create(['title' => 'Docker layer cache misses']);
+    $developerNote->teams()->attach($developers);
+    $sysadminNote = Note::factory()->create(['title' => 'Docker daemon log rotation']);
+    $sysadminNote->teams()->attach($sysadmins);
+
+    Livewire::actingAs($developer)
+        ->test(NotesIndex::class)
+        ->set('search', 'docker')
+        ->assertSee('Docker layer cache misses')
+        ->assertDontSee('Docker daemon log rotation')
+        ->set('broader', true)
+        ->assertSee('Docker layer cache misses')
+        ->assertSee('Docker daemon log rotation');
+});
+
+it('shows team badges on search results', function () {
+    $distinctTeam = Team::factory()->create(['name' => 'platform-squad']);
+    $viewer = User::factory()->create();
+    $viewer->teams()->attach($distinctTeam);
+    $taggedNote = Note::factory()->create(['title' => 'Docker layer cache misses']);
+    $taggedNote->teams()->attach($distinctTeam);
+
+    // No assertDontSee for the browse state: the note form's team checkboxes
+    // legitimately put every team name in the page markup.
+    Livewire::actingAs($viewer)
+        ->test(NotesIndex::class)
+        ->set('search', 'docker')
+        ->assertSee('platform-squad');
+});
+
+it('shows all notes when browsing without a search term', function () {
+    $developers = Team::factory()->create(['name' => 'developers']);
+    $sysadmins = Team::factory()->create(['name' => 'sysadmins']);
+    $developer = User::factory()->create();
+    $developer->teams()->attach($developers);
+    $sysadminNote = Note::factory()->create(['title' => 'Docker daemon log rotation']);
+    $sysadminNote->teams()->attach($sysadmins);
+
+    Livewire::actingAs($developer)
+        ->test(NotesIndex::class)
+        ->assertSee('Docker daemon log rotation');
+});
+
+it('honours a broader flag arriving as a url string', function () {
+    $developers = Team::factory()->create(['name' => 'developers']);
+    $sysadmins = Team::factory()->create(['name' => 'sysadmins']);
+    $developer = User::factory()->create();
+    $developer->teams()->attach($developers);
+    $sysadminNote = Note::factory()->create(['title' => 'Docker daemon log rotation']);
+    $sysadminNote->teams()->attach($sysadmins);
+
+    Livewire::actingAs($developer)
+        ->withQueryParams(['search' => 'docker', 'broader' => '1'])
+        ->test(NotesIndex::class)
+        ->assertSee('Docker daemon log rotation');
+
+    Livewire::actingAs($developer)
+        ->withQueryParams(['search' => 'docker', 'broader' => '0'])
+        ->test(NotesIndex::class)
+        ->assertDontSee('Docker daemon log rotation');
 });
 
 it('tracks the search term in the url so searches are shareable', function () {

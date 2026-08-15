@@ -9,6 +9,14 @@
 
         <flux:textarea wire:model="editing.body" label="Note" rows="12" placeholder="What happened, what fixed it, links to anything useful..." />
 
+        @if ($teams->isNotEmpty())
+            <flux:checkbox.group wire:model="selectedTeamIds" label="Teams" description="Which teams' searches should surface this note. Untick everything for a note every team sees.">
+                @foreach ($teams as $team)
+                    <flux:checkbox :value="$team->id" :label="$team->name" wire:key="team-{{ $team->id }}" />
+                @endforeach
+            </flux:checkbox.group>
+        @endif
+
         <div class="flex justify-end gap-3">
             <flux:button x-on:click="$flux.modal('note-editor').close()">Cancel</flux:button>
             <flux:button variant="primary" wire:click="save">Save note</flux:button>

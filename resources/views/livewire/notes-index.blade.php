@@ -8,14 +8,21 @@
         <flux:button variant="primary" icon="plus" wire:click="$dispatch('note-editor:create')">New note</flux:button>
     </div>
 
-    <flux:input
-        icon="magnifying-glass"
-        placeholder="Search notes..."
-        aria-label="Search notes"
-        clearable
-        wire:model.live.debounce.300ms="search"
-        class="mt-6 max-w-md"
-    />
+    <div class="mt-6 flex items-center gap-6">
+        <flux:input
+            icon="magnifying-glass"
+            placeholder="Search notes..."
+            aria-label="Search notes"
+            clearable
+            wire:model.live.debounce.300ms="search"
+            class="max-w-md"
+        />
+
+        <flux:field variant="inline">
+            <flux:switch wire:model.live="broader" aria-label="Search all teams" />
+            <flux:label>Search all teams</flux:label>
+        </flux:field>
+    </div>
 
     <flux:table :paginate="$notes" class="mt-6">
         <flux:table.columns>
@@ -30,6 +37,11 @@
                     <flux:table.cell class="flex items-center gap-3">
                         <flux:badge color="zinc" size="sm" inset="top bottom">#{{ $note->id }}</flux:badge>
                         <flux:link :href="route('notes.show', $note)" wire:navigate>{{ $note->title }}</flux:link>
+                        @if ($search)
+                            @foreach ($note->teams as $team)
+                                <flux:badge color="sky" size="sm" inset="top bottom">{{ $team->name }}</flux:badge>
+                            @endforeach
+                        @endif
                     </flux:table.cell>
                     <flux:table.cell>{{ $note->user->full_name }}</flux:table.cell>
                     <flux:table.cell>{{ $note->updated_at->diffForHumans() }}</flux:table.cell>
