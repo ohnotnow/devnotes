@@ -28,6 +28,7 @@
         <env name="CACHE_DRIVER" value="array"/>
         <env name="SESSION_DRIVER" value="array"/>
         <env name="QUEUE_CONNECTION" value="sync"/>
+        <env name="FILESYSTEM_DISK" value="local"/>
         <env name="MAIL_MAILER" value="log"/>
     </php>
 </phpunit>
