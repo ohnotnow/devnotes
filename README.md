@@ -40,7 +40,7 @@ Everything under `/api/v1` uses [Laravel Sanctum](https://laravel.com/docs/sanct
 curl -H "Authorization: Bearer $TOKEN" https://your-devnotes-host/api/v1/notes?search=livewire
 ```
 
-The usual REST verbs work: list and search notes, fetch one, create, update (send the full payload, not a partial), and delete (soft, so `#id` references keep resolving).
+The usual REST verbs work: list and search notes, fetch one, create, update (send the full payload, not a partial), and delete (soft, so `#id` references keep resolving). `GET /api/v1/teams` lists every team's id and name, for clients that want to pass `team_ids` when creating or updating notes.
 
 ## The MCP server
 

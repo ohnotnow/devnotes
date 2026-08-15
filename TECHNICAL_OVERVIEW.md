@@ -94,6 +94,7 @@ Operational quirks learned the hard way: laravel/mcp 0.9 speaks protocol revisio
 | `/admin/users` | Admin/Users | `can:admin` |
 | `/admin/teams` | Admin/Teams | `can:admin` |
 | `/api/v1/notes` (apiResource) | Api/V1/NoteController | `auth:sanctum` |
+| `/api/v1/teams` (index only) | Api/V1/TeamController | `auth:sanctum` |
 | `/mcp` | DevnotesServer | `auth:api` (Passport) |
 | `/.well-known/oauth-*`, `/oauth/register` | laravel/mcp | public (by spec) |
 | `/login`, `/login/sso`, `/auth/callback` | SSOController | guest |

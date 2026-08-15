@@ -173,10 +173,25 @@ it('soft-deletes exactly the targeted note', function () {
     expect($list->json('data.0.id'))->toBe($noteToKeep->id);
 });
 
+it('lists every team with id and name for client team discovery', function () {
+    Sanctum::actingAs(User::factory()->create());
+    $sysadmins = Team::factory()->create(['name' => 'sysadmins']);
+    $developers = Team::factory()->create(['name' => 'developers']);
+
+    $response = $this->getJson('/api/v1/teams');
+
+    $response->assertSuccessful();
+    expect($response->json('data'))->toBe([
+        ['id' => $developers->id, 'name' => 'developers'],
+        ['id' => $sysadmins->id, 'name' => 'sysadmins'],
+    ]);
+});
+
 it('rejects unauthenticated requests on every endpoint', function () {
     $note = Note::factory()->create();
 
     $this->getJson('/api/v1/notes')->assertUnauthorized();
+    $this->getJson('/api/v1/teams')->assertUnauthorized();
     $this->getJson("/api/v1/notes/{$note->id}")->assertUnauthorized();
     $this->postJson('/api/v1/notes', [])->assertUnauthorized();
     $this->putJson("/api/v1/notes/{$note->id}", [])->assertUnauthorized();
