@@ -34,6 +34,8 @@ The codebase should be fairly straightforward to get running on the base tier of
 
 ## The API
 
+You can find a ready-to-run CLI that uses the API at the sibling project [devnotes-cli](https://github.com/ohnotnow/devnotes-cli).
+
 Everything under `/api/v1` uses [Laravel Sanctum](https://laravel.com/docs/sanctum) bearer tokens. Users create their own tokens on the "API tokens" page in the web UI. 
 
 ```sh
