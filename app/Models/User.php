@@ -58,4 +58,25 @@ class User extends Authenticatable
     {
         return Attribute::get(fn (): string => trim($this->forenames.' '.$this->surname));
     }
+
+    /**
+     * Replace the user's team rows from two checkbox selections. A team in
+     * either list keeps a row with the matching flags; a team in neither
+     * loses its row entirely.
+     *
+     * @param  array<int>  $subscribedTeamIds
+     * @param  array<int>  $noteDefaultTeamIds
+     */
+    public function syncTeamPreferences(array $subscribedTeamIds, array $noteDefaultTeamIds): void
+    {
+        $rows = collect($subscribedTeamIds)
+            ->merge($noteDefaultTeamIds)
+            ->unique()
+            ->mapWithKeys(fn (int $teamId): array => [$teamId => [
+                'subscribed' => in_array($teamId, $subscribedTeamIds),
+                'note_default' => in_array($teamId, $noteDefaultTeamIds),
+            ]]);
+
+        $this->teams()->sync($rows->all());
+    }
 }
