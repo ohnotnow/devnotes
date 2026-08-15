@@ -62,7 +62,7 @@ class NoteForm extends Component
         $note->teams()->sync($this->selectedTeamIds);
 
         Flux::modal('note-editor')->close();
-        Flux::toast("Saved note #{$note->id}", variant: 'success');
+        Flux::toast("Saved note #{$note->code}", variant: 'success');
         $this->dispatch('note-saved');
     }
 

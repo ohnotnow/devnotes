@@ -12,6 +12,7 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Database\Eloquent\SoftDeletes;
 use Illuminate\Support\HtmlString;
+use Illuminate\Support\Str;
 use Laravel\Scout\Attributes\SearchUsingFullText;
 use Laravel\Scout\Builder as ScoutBuilder;
 use Laravel\Scout\Searchable;
@@ -21,8 +22,9 @@ use League\CommonMark\Extension\GithubFlavoredMarkdownExtension;
 use League\CommonMark\Extension\Mention\Mention;
 use League\CommonMark\Extension\Mention\MentionExtension;
 use League\CommonMark\MarkdownConverter;
+use RuntimeException;
 
-#[Fillable(['title', 'body', 'user_id'])]
+#[Fillable(['title', 'body', 'user_id', 'code', 'ulid'])]
 class Note extends Model
 {
     /** @use HasFactory<NoteFactory> */
@@ -33,6 +35,27 @@ class Note extends Model
      * byte-for-byte so a download IS the contract document.
      */
     public const EXPORT_JSON_FLAGS = JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE;
+
+    /**
+     * Lookalike-free (no l/o/i/0/1), always lowercase. The code is the note's
+     * human reference (#abq4x) on every install it is ever imported into.
+     */
+    public const CODE_ALPHABET = 'abcdefghjkmnpqrstuvwxyz23456789';
+
+    public const CODE_LENGTH = 5;
+
+    protected static function booted(): void
+    {
+        static::creating(function (Note $note) {
+            if (blank($note->ulid)) {
+                $note->ulid = (string) Str::ulid();
+            }
+
+            if (blank($note->code)) {
+                $note->code = static::mintCode();
+            }
+        });
+    }
 
     /**
      * @return array<string, string>
@@ -110,6 +133,28 @@ class Note extends Model
         ];
     }
 
+    /**
+     * A deleted note keeps its code forever (withTrashed), so old #references
+     * can never silently point at the wrong note.
+     */
+    public static function mintCode(): string
+    {
+        $attempts = 0;
+
+        do {
+            if (++$attempts > 50) {
+                throw new RuntimeException('Could not mint a unique note code after 50 attempts - the code space looks saturated');
+            }
+
+            $code = '';
+            for ($i = 0; $i < static::CODE_LENGTH; $i++) {
+                $code .= static::CODE_ALPHABET[random_int(0, strlen(static::CODE_ALPHABET) - 1)];
+            }
+        } while (static::withTrashed()->where('code', $code)->exists());
+
+        return $code;
+    }
+
     private function markdownConverter(): MarkdownConverter
     {
         $environment = new Environment([
@@ -118,7 +163,8 @@ class Note extends Model
             'mentions' => [
                 'note' => [
                     'prefix' => '#',
-                    'pattern' => '\d+',
+                    // (?-i: because the commonmark inline parser matches case-insensitively by default
+                    'pattern' => '(?-i:['.self::CODE_ALPHABET.']{'.self::CODE_LENGTH.'}(?![a-zA-Z0-9]))',
                     'generator' => function (Mention $mention) {
                         $mention->setUrl(route('notes.show', $mention->getIdentifier()));
 

@@ -25,8 +25,16 @@ it('gives a 404 for missing and soft-deleted notes', function () {
     $deletedNote = Note::factory()->create();
     $deletedNote->delete();
 
-    $this->actingAs($user)->get(route('notes.show', 999))->assertNotFound();
-    $this->actingAs($user)->get(route('notes.show', $deletedNote->id))->assertNotFound();
+    $this->actingAs($user)->get(route('notes.show', 'zzzzz'))->assertNotFound();
+    $this->actingAs($user)->get(route('notes.show', $deletedNote->code))->assertNotFound();
+});
+
+it('resolves the note page by code, not by internal id', function () {
+    $user = User::factory()->create();
+    $note = Note::factory()->create(['code' => 'abq4x', 'title' => 'Found by code']);
+
+    $this->actingAs($user)->get('/notes/abq4x')->assertSuccessful()->assertSee('Found by code');
+    $this->actingAs($user)->get("/notes/{$note->id}")->assertNotFound();
 });
 
 it('redirects guests to the login page', function () {
@@ -35,7 +43,7 @@ it('redirects guests to the login page', function () {
     $this->get(route('notes.show', $note))->assertRedirect(route('login'));
 });
 
-it('shows a note with its rendered markdown, author and id', function () {
+it('shows a note with its rendered markdown, author and code', function () {
     $viewer = User::factory()->create(['forenames' => 'Vera', 'surname' => 'Viewer']);
     $author = User::factory()->create(['forenames' => 'Test', 'surname' => 'Author']);
     $note = Note::factory()->create([
@@ -50,5 +58,5 @@ it('shows a note with its rendered markdown, author and id', function () {
     $response->assertSee('A markdown gotcha');
     $response->assertSee('<strong>bold</strong>', escape: false);
     $response->assertSee('Test Author');
-    $response->assertSee("#{$note->id}");
+    $response->assertSee("#{$note->code}");
 });

@@ -6,9 +6,9 @@
             color="zinc"
             icon:trailing="clipboard-document"
             x-data
-            x-on:click="navigator.clipboard.writeText('#{{ $note->id }}'); $flux.toast('Copied #{{ $note->id }} to clipboard')"
-            title="Copy #{{ $note->id }} for cross-referencing"
-        >#{{ $note->id }}</flux:badge>
+            x-on:click="navigator.clipboard.writeText('#{{ $note->code }}'); $flux.toast('Copied #{{ $note->code }} to clipboard')"
+            title="Copy #{{ $note->code }} for cross-referencing"
+        >#{{ $note->code }}</flux:badge>
         <flux:spacer />
         <flux:button size="sm" icon="pencil-square" wire:click="$dispatch('note-editor:edit', { id: {{ $note->id }} })">Edit</flux:button>
         <flux:modal.trigger name="confirm-note-delete">
@@ -20,8 +20,8 @@
     <flux:modal name="confirm-note-delete" class="min-w-[22rem]">
         <div class="space-y-6">
             <div>
-                <flux:heading size="lg" level="2">Delete note #{{ $note->id }}?</flux:heading>
-                <flux:text class="mt-2">Anything referencing #{{ $note->id }} will point at nothing. The note itself stays in the database, so a developer can un-delete it later.</flux:text>
+                <flux:heading size="lg" level="2">Delete note #{{ $note->code }}?</flux:heading>
+                <flux:text class="mt-2">Anything referencing #{{ $note->code }} will point at nothing. The note itself stays in the database, so a developer can un-delete it later.</flux:text>
             </div>
             <div class="flex justify-end gap-3">
                 <flux:button x-on:click="$flux.modal('confirm-note-delete').close()" autofocus>Cancel</flux:button>

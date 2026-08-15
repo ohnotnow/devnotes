@@ -21,7 +21,7 @@ class NoteShow extends Component
     {
         $this->note->delete();
 
-        Flux::toast("Deleted note #{$this->note->id}");
+        Flux::toast("Deleted note #{$this->note->code}");
         $this->redirectRoute('home', navigate: true);
     }
 

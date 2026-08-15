@@ -35,7 +35,7 @@
             @foreach ($notes as $note)
                 <flux:table.row wire:key="note-{{ $note->id }}">
                     <flux:table.cell class="flex items-center gap-3">
-                        <flux:badge color="zinc" size="sm" inset="top bottom">#{{ $note->id }}</flux:badge>
+                        <flux:badge color="zinc" size="sm" inset="top bottom">#{{ $note->code }}</flux:badge>
                         <flux:link :href="route('notes.show', $note)" wire:navigate>{{ $note->title }}</flux:link>
                         @if ($search)
                             @foreach ($note->teams as $team)

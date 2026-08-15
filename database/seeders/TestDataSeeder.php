@@ -62,7 +62,7 @@ class TestDataSeeder extends Seeder
         $followUpNote = Note::factory()->create([
             'user_id' => $standardUser->id,
             'title' => 'More flyout modal focus history',
-            'body' => "Related to the escape-key problem - see note #{$firstNote->id} for the original write-up.\n\nTabbing out of the last field also skips the close button on some browsers.",
+            'body' => "Related to the escape-key problem - see note #{$firstNote->code} for the original write-up.\n\nTabbing out of the last field also skips the close button on some browsers.",
         ]);
         $followUpNote->teams()->attach($developers);
 

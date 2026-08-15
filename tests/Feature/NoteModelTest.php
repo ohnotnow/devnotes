@@ -3,6 +3,8 @@
 use App\Models\Note;
 use App\Models\User;
 use Database\Seeders\TestDataSeeder;
+use Illuminate\Database\QueryException;
+use Illuminate\Support\Str;
 
 it('soft-deletes a note without touching other notes', function () {
     $noteToDelete = Note::factory()->create();
@@ -25,14 +27,40 @@ it('lists the notes a user has created', function () {
     expect($userWithoutNote->notes)->toHaveCount(0);
 });
 
-it('seeds notes including a #id cross-reference', function () {
+it('seeds notes including a #code cross-reference', function () {
     $this->seed(TestDataSeeder::class);
 
     $originalNote = Note::where('title', 'Livewire flyout modals lose focus on close')->sole();
     $followUpNote = Note::where('title', 'More flyout modal focus history')->sole();
 
     expect(Note::count())->toBe(7);
-    expect($followUpNote->body)->toContain("#{$originalNote->id}");
+    expect((string) $followUpNote->rendered_body)->toContain(route('notes.show', $originalNote));
+});
+
+it('mints a code and a ulid when a note is created', function () {
+    $note = Note::factory()->create();
+
+    expect($note->code)->toMatch('/^[abcdefghjkmnpqrstuvwxyz23456789]{5}$/');
+    expect(Str::isUlid($note->ulid))->toBeTrue();
+});
+
+it('keeps an explicitly supplied code and ulid instead of minting', function () {
+    $note = Note::factory()->create([
+        'code' => 'abq4x',
+        'ulid' => '01K2LD1Y5EXAMPLE0000000000',
+    ]);
+
+    expect($note->fresh()->code)->toBe('abq4x');
+    expect($note->fresh()->ulid)->toBe('01K2LD1Y5EXAMPLE0000000000');
+});
+
+it('refuses a duplicate code even when the original note is soft-deleted', function () {
+    $trashedNote = Note::factory()->create(['code' => 'abq4x']);
+    $trashedNote->delete();
+
+    expect(fn () => Note::factory()->create(['code' => 'abq4x']))
+        ->toThrow(QueryException::class);
+    expect(Note::withTrashed()->where('code', 'abq4x')->count())->toBe(1);
 });
 
 it('mass-assigns a note through the creator relationship', function () {

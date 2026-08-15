@@ -98,7 +98,7 @@ it('tracks the search term in the url so searches are shareable', function () {
         ->assertSee('Postgres ilike surprise');
 });
 
-it('lists notes newest-first with their id, title and author', function () {
+it('lists notes newest-first with their code, title and author', function () {
     $viewer = User::factory()->create(['forenames' => 'Vera', 'surname' => 'Viewer']);
     $olderAuthor = User::factory()->create(['forenames' => 'Older', 'surname' => 'Author']);
     $newerAuthor = User::factory()->create(['forenames' => 'Newer', 'surname' => 'Author']);
@@ -112,6 +112,6 @@ it('lists notes newest-first with their id, title and author', function () {
     $response->assertSuccessful();
     $response->assertSeeInOrder(['A newer gotcha', 'Newer Author', 'An older gotcha', 'Older Author']);
     $response->assertSee(route('notes.show', $olderNote));
-    $response->assertSee("#{$olderNote->id}");
+    $response->assertSee("#{$olderNote->code}");
     $response->assertDontSee('A binned gotcha');
 });
