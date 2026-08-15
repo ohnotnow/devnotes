@@ -95,6 +95,7 @@ API routes are name-prefixed `api.v1.*` because a bare `apiResource('notes')` st
 
 - Pest 5, feature tests, in-memory sqlite via `RefreshDatabase`. No migrations or seeders needed first.
 - `phpunit.xml` pins `SCOUT_DRIVER` and all `SSO_*` keys because `.env` leaks into any test-env key it does not pin. If a test fails oddly on config, suspect a leak first.
+- Tests pin `SCOUT_DRIVER=collection` because sqlite cannot run the production full-text search (`SearchUsingFullText` on `Note` + the guarded full-text index migration). The collection engine filters in PHP, so the real `whereFullText` query path is only exercised by live verification on MySQL/Postgres.
 - House style: assert side-effects through Eloquent models, cover happy and sad paths together, one behaviour per test.
 - Run: `php artisan test --compact`
 

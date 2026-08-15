@@ -11,7 +11,7 @@ use Laravel\Mcp\Response;
 use Laravel\Mcp\Server\Attributes\Description;
 use Laravel\Mcp\Server\Tool;
 
-#[Description('Search the team\'s devnotes for gotchas, fixes, and lessons learned. Returns id, title, and a short snippet per match; use get-note with an id for the full note.')]
+#[Description('Search the team\'s devnotes for gotchas, fixes, and lessons learned. Word-based full-text search: multi-word queries match on words in any order, best matches first - no need for exact phrases. Returns id, title, and a short snippet per match; use get-note with an id for the full note.')]
 class SearchNotes extends Tool
 {
     /**
