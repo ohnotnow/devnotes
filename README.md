@@ -52,7 +52,16 @@ claude mcp add --transport http devnotes https://your-devnotes-host/mcp
 
 Agents get three tools: `search-notes` (id, title and a short snippet per hit, scoped to your teams with a `broader: true` escape hatch), `get-note` (the full markdown, accepts `49` or `#49`), and `add-note` (returns the new note's id, tagging the note with your default teams or the team names you pass). The server's instructions nudge agents to search before debugging from scratch and to suggest capturing a note when a session solves something gnarly.
 
-The OAuth keys come from `php artisan passport:keys` (run it once per environment). While you are developing, `config/mcp.php` allows any redirect domain; lock that down before putting the app anywhere public.
+The OAuth keys come from `php artisan passport:keys` (run it once per environment). On hosts with ephemeral filesystems - Laravel Cloud, Kubernetes, swarm and friends - generate a keypair once and hand it to Passport through the env names it already knows:
+
+```sh
+openssl genrsa -out oauth-private.key 4096
+openssl rsa -in oauth-private.key -pubout -out oauth-public.key
+```
+
+Put each file's full contents (BEGIN/END lines included) into your platform's secrets as `PASSPORT_PRIVATE_KEY` and `PASSPORT_PUBLIC_KEY`, then delete the files. Don't regenerate keys as part of your build - every new keypair logs out every connected MCP client.
+
+While you are developing, `config/mcp.php` allows any redirect domain; lock that down before putting the app anywhere public.
 
 ## Search
 
