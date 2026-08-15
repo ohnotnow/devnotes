@@ -20,6 +20,14 @@ class Users extends Component
 
     public $transferToId = '';
 
+    public function openAdd(): void
+    {
+        $this->reset('email', 'selectedTeamIds');
+        $this->resetValidation();
+
+        Flux::modal('user-add')->show();
+    }
+
     public function add(): void
     {
         $this->email = strtolower(trim($this->email));

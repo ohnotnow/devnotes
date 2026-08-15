@@ -25,20 +25,35 @@ it('saves diverging subscriptions and note defaults, dropping teams unchecked in
     $developers = Team::factory()->create(['name' => 'developers']);
     $security = Team::factory()->create(['name' => 'security']);
     $lapsed = Team::factory()->create(['name' => 'lapsed']);
+    $writeOnly = Team::factory()->create(['name' => 'write-only']);
     $member = User::factory()->create();
     $member->teams()->attach([$developers->id, $lapsed->id]);
 
     Livewire::actingAs($member)
         ->test(TeamSettings::class)
         ->set('subscribedTeamIds', [$developers->id, $security->id])
-        ->set('defaultTeamIds', [$developers->id])
+        ->set('defaultTeamIds', [$developers->id, $writeOnly->id])
         ->call('save')
         ->assertHasNoErrors();
 
     $member->refresh();
     expect($member->subscribedTeams()->pluck('teams.id')->all())->toEqualCanonicalizing([$developers->id, $security->id]);
-    expect($member->defaultNoteTeams()->pluck('teams.id')->all())->toBe([$developers->id]);
-    expect($member->teams()->pluck('teams.id')->all())->toEqualCanonicalizing([$developers->id, $security->id]);
+    expect($member->defaultNoteTeams()->pluck('teams.id')->all())->toEqualCanonicalizing([$developers->id, $writeOnly->id]);
+    expect($member->teams()->pluck('teams.id')->all())->toEqualCanonicalizing([$developers->id, $security->id, $writeOnly->id]);
+});
+
+it('rejects a team id that does not exist without saving anything', function () {
+    $developers = Team::factory()->create(['name' => 'developers']);
+    $member = User::factory()->create();
+    $member->teams()->attach($developers);
+
+    Livewire::actingAs($member)
+        ->test(TeamSettings::class)
+        ->set('subscribedTeamIds', [999])
+        ->call('save')
+        ->assertHasErrors(['subscribedTeamIds.0']);
+
+    expect($member->refresh()->teams()->pluck('teams.id')->all())->toBe([$developers->id]);
 });
 
 it('changes what scoped search shows once saved', function () {
@@ -61,6 +76,10 @@ it('changes what scoped search shows once saved', function () {
     expect(Note::searchScoped($member->fresh(), 'docker')->get())->toHaveCount(0);
 });
 
-it('requires login', function () {
-    $this->get('/settings/teams')->assertRedirect('/login');
+it('renders the full page for a logged-in user and requires login otherwise', function () {
+    $member = User::factory()->create();
+
+    $this->get(route('team-settings'))->assertRedirect(route('login'));
+
+    $this->actingAs($member)->get(route('team-settings'))->assertSuccessful();
 });

@@ -10,18 +10,17 @@ it('shows admins the team list with member and note counts, and turns everyone e
     $admin = User::factory()->create(['is_admin' => true]);
     $regularUser = User::factory()->create(['is_admin' => false]);
     $developers = Team::factory()->create(['name' => 'developers']);
-    $developers->users()->attach($admin);
-    $note = Note::factory()->create();
-    $note->teams()->attach($developers);
+    $developers->users()->attach([$admin->id, $regularUser->id]);
+    Note::factory(3)->create()->each(fn (Note $note) => $note->teams()->attach($developers));
 
-    $this->actingAs($admin)->get('/admin/teams')
+    $this->actingAs($admin)->get(route('admin.teams'))
         ->assertSuccessful()
-        ->assertSee('developers');
+        ->assertSeeInOrder(['developers', '2', '3']);
 
-    $this->actingAs($regularUser)->get('/admin/teams')->assertForbidden();
+    $this->actingAs($regularUser)->get(route('admin.teams'))->assertForbidden();
 });
 
-it('creates and renames teams, rejecting duplicate names', function () {
+it('creates and renames teams, rejecting duplicate, blank, and oversized names', function () {
     $admin = User::factory()->create(['is_admin' => true]);
     Team::factory()->create(['name' => 'taken']);
 
@@ -33,10 +32,18 @@ it('creates and renames teams, rejecting duplicate names', function () {
         ->assertHasNoErrors();
     $team = Team::where('name', 'developers')->sole();
 
+    // Saving without changing the name must pass - the unique rule ignores
+    // the team's own row.
     Livewire::actingAs($admin)
         ->test(Teams::class)
         ->call('openEdit', $team->id)
         ->assertSet('editing.name', 'developers')
+        ->call('save')
+        ->assertHasNoErrors();
+
+    Livewire::actingAs($admin)
+        ->test(Teams::class)
+        ->call('openEdit', $team->id)
         ->set('editing.name', 'platform')
         ->call('save')
         ->assertHasNoErrors();
@@ -44,10 +51,26 @@ it('creates and renames teams, rejecting duplicate names', function () {
 
     Livewire::actingAs($admin)
         ->test(Teams::class)
-        ->call('openCreate')
+        ->call('openEdit', $team->id)
         ->set('editing.name', 'taken')
         ->call('save')
         ->assertHasErrors(['editing.name']);
+    expect($team->refresh()->name)->toBe('platform');
+
+    Livewire::actingAs($admin)
+        ->test(Teams::class)
+        ->call('openCreate')
+        ->set('editing.name', '')
+        ->call('save')
+        ->assertHasErrors(['editing.name']);
+
+    Livewire::actingAs($admin)
+        ->test(Teams::class)
+        ->call('openCreate')
+        ->set('editing.name', str_repeat('x', 256))
+        ->call('save')
+        ->assertHasErrors(['editing.name']);
+
     expect(Team::count())->toBe(2);
 });
 
@@ -59,6 +82,8 @@ it('deletes a team without hiding or losing anything', function () {
     $member->teams()->attach([$doomed->id, $survivor->id]);
     $note = Note::factory()->create(['title' => 'Docker daemon log rotation']);
     $note->teams()->attach($doomed);
+    $controlNote = Note::factory()->create(['title' => 'Docker registry mirror config']);
+    $controlNote->teams()->attach($survivor);
 
     Livewire::actingAs($admin)
         ->test(Teams::class)
@@ -69,5 +94,6 @@ it('deletes a team without hiding or losing anything', function () {
     expect(Team::where('name', 'doomed')->exists())->toBeFalse();
     expect($member->refresh()->teams()->pluck('teams.id')->all())->toBe([$survivor->id]);
     expect($note->refresh()->teams)->toHaveCount(0);
-    expect(Note::searchScoped($member, 'docker')->get()->pluck('id')->all())->toBe([$note->id]);
+    expect($controlNote->refresh()->teams()->pluck('teams.id')->all())->toBe([$survivor->id]);
+    expect(Note::searchScoped($member, 'docker')->get()->pluck('id')->all())->toEqualCanonicalizing([$note->id, $controlNote->id]);
 });

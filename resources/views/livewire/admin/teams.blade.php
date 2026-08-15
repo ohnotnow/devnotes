@@ -25,15 +25,16 @@
                     <flux:table.cell>{{ $team->users_count }}</flux:table.cell>
                     <flux:table.cell>{{ $team->notes_count }}</flux:table.cell>
                     <flux:table.cell align="end">
-                        <flux:button size="sm" icon="pencil" wire:click="openEdit({{ $team->id }})">Rename</flux:button>
-                        <flux:button size="sm" variant="danger" icon="trash" wire:click="openDelete({{ $team->id }})">Delete</flux:button>
+                        <flux:button size="sm" icon="pencil" wire:click="openEdit({{ $team->id }})" aria-label="Rename {{ $team->name }}">Rename</flux:button>
+                        <flux:button size="sm" variant="danger" icon="trash" wire:click="openDelete({{ $team->id }})" aria-label="Delete {{ $team->name }}">Delete</flux:button>
                     </flux:table.cell>
                 </flux:table.row>
             @endforeach
         </flux:table.rows>
     </flux:table>
 
-    <flux:modal name="team-editor" variant="flyout" aria-label="Team editor" class="md:w-96">
+    {{-- No aria-label on flux:modal - see note-form.blade.php for why. --}}
+    <flux:modal name="team-editor" variant="flyout" class="md:w-96">
         <div class="space-y-6">
             <div>
                 <flux:heading size="lg" level="2">{{ $editing['id'] ? "Rename {$editing['name']}" : 'Add team' }}</flux:heading>
@@ -49,7 +50,7 @@
         </div>
     </flux:modal>
 
-    <flux:modal name="team-delete" variant="flyout" aria-label="Confirm team deletion" class="md:w-96">
+    <flux:modal name="team-delete" variant="flyout" class="md:w-96">
         <div class="space-y-6">
             <div>
                 <flux:heading size="lg" level="2">Delete {{ $deletingTeam?->name }}?</flux:heading>

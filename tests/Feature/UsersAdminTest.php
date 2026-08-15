@@ -50,6 +50,7 @@ it('adds a user with their teams subscribed and set as note defaults', function 
     $newUser = User::where('email', 'newbie@example.test')->sole();
     expect($newUser->subscribedTeams()->pluck('teams.id')->all())->toBe([$developers->id]);
     expect($newUser->defaultNoteTeams()->pluck('teams.id')->all())->toBe([$developers->id]);
+    expect($newUser->teams()->pluck('teams.id')->all())->toBe([$developers->id]);
 });
 
 it('edits an existing user\'s teams from the table', function () {
@@ -69,6 +70,43 @@ it('edits an existing user\'s teams from the table', function () {
 
     expect($mover->refresh()->subscribedTeams()->pluck('teams.id')->all())->toBe([$sysadmins->id]);
     expect($mover->defaultNoteTeams()->pluck('teams.id')->all())->toBe([$sysadmins->id]);
+});
+
+it('flattens a user\'s per-team fine-tuning when an admin saves their teams', function () {
+    // Deliberate, documented in the flyout copy: admin membership is the
+    // simple case - read and post to every ticked team.
+    $admin = User::factory()->create(['is_admin' => true]);
+    $developers = Team::factory()->create(['name' => 'developers']);
+    $tuner = User::factory()->create();
+    $tuner->teams()->attach($developers);
+    $tuner->teams()->updateExistingPivot($developers->id, ['note_default' => false]);
+
+    Livewire::actingAs($admin)
+        ->test(Users::class)
+        ->call('openTeams', $tuner->id)
+        ->call('saveTeams')
+        ->assertHasNoErrors();
+
+    expect($tuner->refresh()->defaultNoteTeams()->pluck('teams.id')->all())->toBe([$developers->id]);
+});
+
+it('does not leak a cancelled teams edit into the add-person form', function () {
+    $admin = User::factory()->create(['is_admin' => true]);
+    $developers = Team::factory()->create(['name' => 'developers']);
+    $existingMember = User::factory()->create();
+    $existingMember->teams()->attach($developers);
+
+    Livewire::actingAs($admin)
+        ->test(Users::class)
+        ->call('openTeams', $existingMember->id)
+        ->assertSet('selectedTeamIds', [$developers->id])
+        ->call('openAdd')
+        ->assertSet('selectedTeamIds', [])
+        ->set('email', 'newbie@example.test')
+        ->call('add')
+        ->assertHasNoErrors();
+
+    expect(User::where('email', 'newbie@example.test')->sole()->teams)->toHaveCount(0);
 });
 
 it('toggles admin status both ways but never your own', function () {

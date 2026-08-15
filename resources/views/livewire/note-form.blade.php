@@ -1,4 +1,8 @@
-<flux:modal name="note-editor" variant="flyout" aria-label="Note editor" class="md:w-[32rem]">
+{{-- No aria-label on flux:modal: it lands on the roleless ui-modal wrapper,
+     which fails axe (aria-prohibited-attr) and leaks phantom text into the
+     closed page's reading order. The dialog cannot be named through the
+     component API; the level-2 heading announces the purpose instead. --}}
+<flux:modal name="note-editor" variant="flyout" class="md:w-[32rem]">
     <div class="space-y-6">
         <div>
             <flux:heading size="lg" level="2">{{ $editing['id'] ? "Edit note #{$editing['id']}" : 'New note' }}</flux:heading>

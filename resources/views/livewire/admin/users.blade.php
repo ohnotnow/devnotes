@@ -5,9 +5,7 @@
             <flux:text class="mt-2">Anyone listed here can sign in through SSO. Add someone by email and their details fill in on their first login.</flux:text>
         </div>
         <flux:spacer />
-        <flux:modal.trigger name="user-add">
-            <flux:button variant="primary" icon="plus">Add person</flux:button>
-        </flux:modal.trigger>
+        <flux:button variant="primary" icon="plus" wire:click="openAdd">Add person</flux:button>
     </div>
 
     <flux:table class="mt-6">
@@ -63,6 +61,7 @@
                                 variant="danger"
                                 icon="trash"
                                 wire:click="openDelete({{ $user->id }})"
+                                aria-label="Delete {{ $user->full_name !== '' ? $user->full_name : $user->email }}"
                             >Delete</flux:button>
                         @endunless
                     </flux:table.cell>
@@ -71,7 +70,8 @@
         </flux:table.rows>
     </flux:table>
 
-    <flux:modal name="user-add" variant="flyout" aria-label="Add a person" class="md:w-96">
+    {{-- No aria-label on flux:modal - see note-form.blade.php for why. --}}
+    <flux:modal name="user-add" variant="flyout" class="md:w-96">
         <div class="space-y-6">
             <div>
                 <flux:heading size="lg" level="2">Add a person</flux:heading>
@@ -95,7 +95,7 @@
         </div>
     </flux:modal>
 
-    <flux:modal name="user-teams" variant="flyout" aria-label="Edit user teams" class="md:w-96">
+    <flux:modal name="user-teams" variant="flyout" class="md:w-96">
         <div class="space-y-6">
             <div>
                 <flux:heading size="lg" level="2">Teams for {{ $editingTeamsUser?->full_name !== '' ? $editingTeamsUser?->full_name : $editingTeamsUser?->email }}</flux:heading>
@@ -117,7 +117,7 @@
         </div>
     </flux:modal>
 
-    <flux:modal name="user-delete" variant="flyout" aria-label="Confirm user deletion" class="md:w-96">
+    <flux:modal name="user-delete" variant="flyout" class="md:w-96">
         <div class="space-y-6">
             <div>
                 <flux:heading size="lg" level="2">Delete {{ $deletingUser?->full_name !== '' ? $deletingUser?->full_name : $deletingUser?->email }}?</flux:heading>
