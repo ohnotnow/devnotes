@@ -6,6 +6,7 @@ use App\Mcp\Tools\GetNote;
 use App\Mcp\Tools\SearchNotes;
 use App\Models\Note;
 use App\Models\OAuthUser;
+use App\Models\Team;
 use App\Models\User;
 
 it('finds matching notes via search-notes returning snippets rather than full bodies', function () {
@@ -32,7 +33,71 @@ it('finds matching notes via search-notes returning snippets rather than full bo
     ]);
 
     $noMatches->assertOk();
-    $noMatches->assertSee('[]');
+    $noMatches->assertSee('"results":[]');
+    // This caller subscribes to no teams, so the search was never scoped and
+    // there is nothing to widen - no hint.
+    $noMatches->assertDontSee('retry with broader');
+});
+
+it('keeps the hint on a scoped search with zero results', function () {
+    $developers = Team::factory()->create(['name' => 'developers']);
+    $agentUser = User::factory()->create();
+    $agentUser->teams()->attach($developers);
+
+    $response = DevnotesServer::actingAs(OAuthUser::findOrFail($agentUser->id))->tool(SearchNotes::class, [
+        'query' => 'nothing-matches-this',
+    ]);
+
+    $response->assertOk();
+    $response->assertSee('"results":[]');
+    $response->assertSee('retry with broader');
+});
+
+it('scopes search-notes to the caller\'s teams and hints that broader exists', function () {
+    $developers = Team::factory()->create(['name' => 'developers']);
+    $sysadmins = Team::factory()->create(['name' => 'sysadmins']);
+    $agentUser = User::factory()->create();
+    $agentUser->teams()->attach($developers);
+    $developerNote = Note::factory()->create(['title' => 'Docker layer cache misses']);
+    $developerNote->teams()->attach($developers);
+    $sysadminNote = Note::factory()->create(['title' => 'Docker daemon log rotation']);
+    $sysadminNote->teams()->attach($sysadmins);
+
+    $response = DevnotesServer::actingAs(OAuthUser::findOrFail($agentUser->id))->tool(SearchNotes::class, [
+        'query' => 'docker',
+    ]);
+
+    $response->assertOk();
+    $response->assertSee('Docker layer cache misses');
+    $response->assertDontSee('Docker daemon log rotation');
+    $response->assertSee('retry with broader');
+});
+
+it('labels out-of-team hits under broader and drops the hint', function () {
+    $developers = Team::factory()->create(['name' => 'developers']);
+    $sysadmins = Team::factory()->create(['name' => 'sysadmins']);
+    $agentUser = User::factory()->create();
+    $agentUser->teams()->attach($developers);
+    $developerNote = Note::factory()->create(['title' => 'Docker layer cache misses']);
+    $developerNote->teams()->attach($developers);
+    $sysadminNote = Note::factory()->create(['title' => 'Docker daemon log rotation']);
+    $sysadminNote->teams()->attach($sysadmins);
+    Note::factory()->create(['title' => 'Docker compose healthcheck gotcha']);
+
+    $response = DevnotesServer::actingAs(OAuthUser::findOrFail($agentUser->id))->tool(SearchNotes::class, [
+        'query' => 'docker',
+        'broader' => true,
+    ]);
+
+    $response->assertOk();
+    $response->assertSee('Docker daemon log rotation');
+    $response->assertDontSee('retry with broader');
+
+    // Row keys serialise in build order, so a teams fragment followed by } or
+    // by the label pins which rows carry from_outside_your_teams.
+    $response->assertSee('"teams":["sysadmins"],"from_outside_your_teams":true');
+    $response->assertSee('"teams":["developers"]}');
+    $response->assertSee('"teams":[]}');
 });
 
 it('returns the full note body via get-note accepting both bare and hash-prefixed ids', function () {
@@ -89,6 +154,37 @@ it('rejects invalid add-note input as a tool error and creates nothing', functio
 
     $response->assertHasErrors(['title', 'body']);
     expect(Note::count())->toBe(0);
+});
+
+it('attaches teams on add-note from names, defaults, or a deliberate empty list', function () {
+    $developers = Team::factory()->create(['name' => 'developers']);
+    $sysadmins = Team::factory()->create(['name' => 'sysadmins']);
+    $agentUser = User::factory()->create();
+    $agentUser->teams()->attach($developers);
+
+    $defaulted = DevnotesServer::actingAs(OAuthUser::findOrFail($agentUser->id))->tool(AddNote::class, [
+        'title' => 'Defaulted note', 'body' => 'Body.',
+    ]);
+    $defaulted->assertOk();
+    expect(Note::where('title', 'Defaulted note')->sole()->teams()->pluck('teams.id')->all())->toBe([$developers->id]);
+
+    $explicit = DevnotesServer::actingAs(OAuthUser::findOrFail($agentUser->id))->tool(AddNote::class, [
+        'title' => 'Explicit note', 'body' => 'Body.', 'teams' => ['sysadmins'],
+    ]);
+    $explicit->assertOk();
+    expect(Note::where('title', 'Explicit note')->sole()->teams()->pluck('teams.id')->all())->toBe([$sysadmins->id]);
+
+    $teamless = DevnotesServer::actingAs(OAuthUser::findOrFail($agentUser->id))->tool(AddNote::class, [
+        'title' => 'Whole-pot note', 'body' => 'Body.', 'teams' => [],
+    ]);
+    $teamless->assertOk();
+    expect(Note::where('title', 'Whole-pot note')->sole()->teams()->count())->toBe(0);
+
+    $unknown = DevnotesServer::actingAs(OAuthUser::findOrFail($agentUser->id))->tool(AddNote::class, [
+        'title' => 'Bad team note', 'body' => 'Body.', 'teams' => ['made-up-team'],
+    ]);
+    $unknown->assertHasErrors(['teams.0']);
+    expect(Note::where('title', 'Bad team note')->exists())->toBeFalse();
 });
 
 it('creates a note owned by the calling user even when the arguments spoof a user_id', function () {

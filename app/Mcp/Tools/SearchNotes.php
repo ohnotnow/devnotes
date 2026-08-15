@@ -3,6 +3,7 @@
 namespace App\Mcp\Tools;
 
 use App\Models\Note;
+use App\Models\User;
 use Illuminate\Contracts\JsonSchema\JsonSchema;
 use Illuminate\JsonSchema\Types\Type;
 use Illuminate\Support\Str;
@@ -11,7 +12,7 @@ use Laravel\Mcp\Response;
 use Laravel\Mcp\Server\Attributes\Description;
 use Laravel\Mcp\Server\Tool;
 
-#[Description('Search the team\'s devnotes for gotchas, fixes, and lessons learned. Word-based full-text search: multi-word queries match on words in any order, best matches first - no need for exact phrases. Returns id, title, and a short snippet per match; use get-note with an id for the full note.')]
+#[Description('Search the team\'s devnotes for gotchas, fixes, and lessons learned. Word-based full-text search: multi-word queries match on words in any order, best matches first - no need for exact phrases. Results are scoped to your teams by default; pass broader: true to search every team\'s notes. Returns id, title, and a short snippet per match; use get-note with an id for the full note.')]
 class SearchNotes extends Tool
 {
     /**
@@ -21,15 +22,37 @@ class SearchNotes extends Tool
     {
         $validated = $request->validate([
             'query' => ['required', 'string'],
+            'broader' => ['sometimes', 'boolean'],
         ]);
 
-        $results = Note::search($validated['query'])->take(20)->get();
+        $user = User::findOrFail($request->user()->id);
+        $broader = $validated['broader'] ?? false;
+        $subscribedTeamIds = $user->subscribedTeams()->pluck('teams.id');
 
-        return Response::json($results->map(fn (Note $note): array => [
-            'id' => $note->id,
-            'title' => $note->title,
-            'snippet' => Str::limit($note->body, 200),
-        ])->all());
+        $results = Note::searchScoped($user, $validated['query'], $broader)->take(20)->get();
+
+        $payload = [
+            'results' => $results->map(function (Note $note) use ($broader, $subscribedTeamIds): array {
+                $row = [
+                    'id' => $note->id,
+                    'title' => $note->title,
+                    'snippet' => Str::limit($note->body, 200),
+                    'teams' => $note->teams->pluck('name')->all(),
+                ];
+
+                if ($broader && $note->teams->isNotEmpty() && $note->teams->pluck('id')->intersect($subscribedTeamIds)->isEmpty() && $subscribedTeamIds->isNotEmpty()) {
+                    $row['from_outside_your_teams'] = true;
+                }
+
+                return $row;
+            })->all(),
+        ];
+
+        if (! $broader && $subscribedTeamIds->isNotEmpty()) {
+            $payload['hint'] = 'Results were scoped to your teams. If nothing here answered the question, retry with broader: true.';
+        }
+
+        return Response::json($payload);
     }
 
     /**
@@ -43,6 +66,8 @@ class SearchNotes extends Tool
             'query' => $schema->string()
                 ->description('Search terms matched against note titles and bodies.')
                 ->required(),
+            'broader' => $schema->boolean()
+                ->description('Set true to search all teams\' notes, not just your own teams\'.'),
         ];
     }
 }
