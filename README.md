@@ -1,4 +1,4 @@
-# devnotes
+# Devnotes
 
 A CLI and MCP for capturing notes during a live coding session.
 
