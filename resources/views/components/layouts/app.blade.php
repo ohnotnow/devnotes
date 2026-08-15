@@ -29,6 +29,7 @@
                         <flux:separator class="my-2" />
                         <flux:sidebar.item icon="users" :href="route('admin.users')" wire:navigate>Users</flux:sidebar.item>
                         <flux:sidebar.item icon="user-group" :href="route('admin.teams')" wire:navigate>Teams</flux:sidebar.item>
+                        <flux:sidebar.item icon="arrow-down-tray" :href="route('admin.export')">Export</flux:sidebar.item>
                     @endcan
                 </flux:sidebar.nav>
                 <flux:sidebar.spacer />

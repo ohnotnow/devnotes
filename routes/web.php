@@ -1,5 +1,6 @@
 <?php
 
+use App\Http\Controllers\Admin\ExportController;
 use App\Livewire\Admin\Teams;
 use App\Livewire\Admin\Users;
 use App\Livewire\ApiTokens;
@@ -17,4 +18,5 @@ Route::middleware('auth')->group(function () {
 
     Route::get('/admin/users', Users::class)->name('admin.users')->middleware('can:admin');
     Route::get('/admin/teams', Teams::class)->name('admin.teams')->middleware('can:admin');
+    Route::get('/admin/export', ExportController::class)->name('admin.export')->middleware('can:admin');
 });

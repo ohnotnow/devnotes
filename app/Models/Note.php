@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Http\Resources\ExportNoteResource;
 use Database\Factories\NoteFactory;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Casts\Attribute;
@@ -26,6 +27,12 @@ class Note extends Model
 {
     /** @use HasFactory<NoteFactory> */
     use HasFactory, Searchable, SoftDeletes;
+
+    /**
+     * Encoding for export downloads, matching tests/fixtures/export-v1.json
+     * byte-for-byte so a download IS the contract document.
+     */
+    public const EXPORT_JSON_FLAGS = JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE;
 
     /**
      * @return array<string, string>
@@ -85,6 +92,22 @@ class Note extends Model
     public function assignTeams(?array $teamIds = null): void
     {
         $this->teams()->sync($teamIds ?? $this->user->defaultNoteTeams()->pluck('teams.id')->all());
+    }
+
+    /**
+     * The whole pot as a versioned export document. The shape is a contract
+     * with imports, pinned by tests/fixtures/export-v1.json.
+     *
+     * @return array<string, mixed>
+     */
+    public static function exportPayload(): array
+    {
+        return [
+            'version' => 1,
+            'notes' => ExportNoteResource::collection(
+                static::withTrashed()->with(['user', 'teams'])->orderBy('id')->get()
+            )->resolve(),
+        ];
     }
 
     private function markdownConverter(): MarkdownConverter
