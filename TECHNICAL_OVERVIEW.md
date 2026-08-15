@@ -18,7 +18,7 @@ A shared pot of dev-team gotchas kept as tiny markdown notes, served three ways 
 ## Directory structure
 
 ```
-app/Livewire/           NotesIndex, NoteShow, NoteForm, ApiTokens, Admin/Users
+app/Livewire/           NotesIndex, NoteShow, NoteForm, ApiTokens, Admin/Users + Teams + ImportNotes
 app/Mcp/Servers/        DevnotesServer (instructions + tool registration)
 app/Mcp/Tools/          AddNote, SearchNotes, GetNote
 app/Http/Controllers/   Api/V1/NoteController + ExportController, Admin/ExportController, Auth/SSOController
@@ -32,13 +32,13 @@ config/                 sso.php (access gate), mcp.php (OAuth redirect rules)
 ## Domain model
 
 ```
-User 1 ──→ * Note   (Note soft-deletes; user_id survives; #id links keep resolving)
+User 1 ──→ * Note   (Note soft-deletes; user_id survives; #code links keep resolving)
 User * ──→ * Team   (team_user pivot: subscribed + note_default booleans)
 Note * ──→ * Team   (note_team pivot)
 OAuthUser = the same users table through a different lens (Passport only)
 ```
 
-Models use PHP attribute style (`#[Fillable]`), not `$fillable` arrays. `Note::rendered_body` converts markdown via CommonMark with `html_input => escape`, and a mention extension turns `#123` into a link to that note. Notes are wiki-style: any authenticated user can edit or delete any note. Users are the gate; there are no per-note permissions.
+Models use PHP attribute style (`#[Fillable]`), not `$fillable` arrays. Every note mints two identities at creation (see the export/import section): a five-char `code` (`abq4x`, the only reference humans see) and a `ulid` (machine identity, never displayed); the integer id is internal plumbing. `Note::rendered_body` converts markdown via CommonMark with `html_input => escape`, and a mention extension turns `#abq4x` into a link to that note (lowercase-only, exact length - the pattern carries a `(?-i:` group because commonmark's inline parser matches case-insensitively by default). Notes are wiki-style: any authenticated user can edit or delete any note. Users are the gate; there are no per-note permissions.
 
 ### Teams scope search recall, never visibility
 
@@ -47,17 +47,18 @@ Design and rejected alternatives live in ant ADR devnotes-sXVTv. The whole featu
 - `Note::searchScoped($user, $query, $broader)` is the single scoping implementation, used by the API, the MCP tool, and the web index. It shows notes sharing a subscribed team plus teamless notes; `broader` (or a user with no subscriptions) means the whole pot. Its query callback carries the eager loads - never chain `->query()` onto it, Scout's `Builder::query()` replaces the callback rather than composing, which silently drops the scoping.
 - `Note::assignTeams($ids)` attaches explicit teams or the author's `defaultNoteTeams` when given null - create paths only; update paths sync explicitly.
 - `User::syncTeamPreferences($readIds, $defaultIds)` reconciles the pivot from the two checkbox groups; a team in neither list loses its row.
-- Browsing, note show pages, and `#id` resolution are never scoped. Deleting a team cascades its pivot rows, so its notes join the whole pot - nothing is ever hidden.
+- Browsing, note show pages, and `#code` resolution are never scoped. Deleting a team cascades its pivot rows, so its notes join the whole pot - nothing is ever hidden.
 
 ## Export and import
 
-Design and rejected alternatives live in ant ADR devnotes-9X77J (`ant for devnotes-gbHJd.8`).
+Design and rejected alternatives live in ant ADR devnotes-9X77J (`ant for devnotes-gbHJd.8`); the identity pivot that reshaped it is ant entry devnotes-C8ggs (`ant for devnotes-gbHJd.9`).
 
-- The export format is a versioned contract: `{"version": 1, "notes": [...]}`, shaped by `ExportNoteResource` (deliberately separate from `NoteResource` so the API can evolve without breaking import compatibility) and pinned byte-for-byte by `tests/fixtures/export-v1.json`. `Note::exportPayload()` builds it over `withTrashed()`; `Note::EXPORT_JSON_FLAGS` makes every download byte-identical to the fixture's encoding. Authors travel as email (the matching key) plus names and staff/admin flags; passwords and tokens never travel.
+- The export format is a versioned contract: `{"version": 1, "notes": [...]}`, shaped by `ExportNoteResource` (deliberately separate from `NoteResource` so the API can evolve without breaking import compatibility) and pinned byte-for-byte by `tests/fixtures/export-v1.json`. Each note carries its `ulid` and `code` - never the integer id, which is meaningless outside its install. `Note::exportPayload()` builds it over `withTrashed()`; `Note::EXPORT_JSON_FLAGS` makes every download byte-identical to the fixture's encoding. Authors travel as email (the matching key) plus names and staff/admin flags; passwords and tokens never travel.
 - Both export doors are admin-only via the `admin` gate: a sidebar download at `/admin/export` and `GET /api/v1/export` for scheduled DR pulls.
-- `ImportNotes` (queued job, `$tries = 1`) takes `(disk, path, createUsers = true, fallbackOwner = null)`. Existing note ids are skipped and reported - re-imports are idempotent, which is also the recovery path for a half-failed import (no transaction, deliberately). Existing users are matched by email and never modified; unknown authors are created (or, with `createUsers: false`, their notes go to the fallback owner). Ids, timestamps, and `deleted_at` are preserved via `forceFill` with timestamps off; trashed notes are created inside `withoutSyncingToSearch` so external search engines never index them.
+- `ImportNotes` (queued job, `$tries = 1`) takes `(disk, path, createUsers = true, fallbackOwner = null)`. Matching is by ulid: known ulids are skipped and reported by code - re-imports are idempotent, which is also the recovery path for a half-failed import (no transaction, deliberately). New notes get fresh internal ids; a new note whose code is already taken gets a re-minted code, reported in `recoded`. Existing users are matched by email and never modified; unknown authors are created (or, with `createUsers: false`, their notes go to the fallback owner). Codes, ulids, timestamps, and `deleted_at` are preserved via `forceFill` with timestamps off; trashed notes are created inside `withoutSyncingToSearch` so external search engines never index them.
 - The job deletes its stored working copy in a `finally` - the caller's original file is never touched. `handle()` returns a report array; callers that want it must run the job in-process (`(new ImportNotes(...))->handle()`) because `dispatchSync` discards a `ShouldQueue` job's return value.
-- `devnotes:import {file}` copies the file to the default disk and runs the job in-process. On Postgres the job resets the notes id sequence with a raw `setval` after importing - explicit-id inserts don't advance Postgres sequences, and this is the codebase's one agreed exception to the no-raw-SQL rule.
+- `devnotes:import {file}` copies the file to the default disk and runs the job in-process. Because imports never insert explicit ids, no database sequence can desync and there is no raw SQL anywhere - the previously-agreed Postgres `setval` exception was deleted with the identity pivot.
+- The web import (`/admin/import`, Livewire, flux:file-upload dropzone) previews in the request (envelope validation only - the job stays the source of truth), then stores the blob via `Storage` and dispatches the job to the real queue with the admin's per-note skip/overwrite decisions as `overwriteUlids` and, when "create missing authors" is off, the acting admin as fallback owner. Ulid matches that are IDENTICAL to the file (same title, body, teams, author, timestamps, deleted state) are silently counted and skipped - only drifted matches ask for a decision, with a "differs in" hint (a decision with one sane answer trains people to stop reading). Overwrite takes the file's version wholesale except `ulid`/`code`, which never change. The preview is a snapshot, deliberately - no locking between preview and job run.
 
 ## The auth story (the fiddly bit)
 
@@ -91,7 +92,7 @@ Passport's guard constructs its crypto keys even to reject a tokenless request, 
 
 ## MCP server
 
-`DevnotesServer` carries a short instructions block (search before debugging, capture gotchas, write for a stranger, retry scoped searches with broader) and three tools with token-frugal returns: `search-notes` gives id/title/200-char snippet (max 20 hits) scoped to the caller's teams by default - scoped responses carry a retry-with-`broader: true` hint, and broader responses label out-of-team rows `from_outside_your_teams` - `get-note` gives the full markdown and accepts `49` or `#49`, `add-note` validates with the same rules as the API, tags the note with team names or the author's defaults, and returns `{id, title}`. Unknown ids return a tool error pointing at `search-notes`, not an exception. Tools resolve the caller's `App\Models\User` via `User::findOrFail($request->user()->id)` - same table, same ids as OAuthUser.
+`DevnotesServer` carries a short instructions block (search before debugging, capture gotchas, write for a stranger, retry scoped searches with broader) and three tools with token-frugal returns: `search-notes` gives code/title/200-char snippet (max 20 hits) scoped to the caller's teams by default - scoped responses carry a retry-with-`broader: true` hint, and broader responses label out-of-team rows `from_outside_your_teams` - `get-note` gives the full markdown and accepts `abq4x` or `#abq4x`, `add-note` validates with the same rules as the API, tags the note with team names or the author's defaults, and returns `{code, title}`. Unknown codes return a tool error pointing at `search-notes`, not an exception. Tools resolve the caller's `App\Models\User` via `User::findOrFail($request->user()->id)` - same table, same ids as OAuthUser.
 
 Operational quirks learned the hard way: laravel/mcp 0.9 speaks protocol revisions up to 2025-11-25 (clients negotiate down), and MCP clients cache both the tool list and the instructions text at connection time. After deploying new or changed tools, clients need a manual reconnect; changed instructions may need the connector removed and re-added.
 
@@ -100,12 +101,13 @@ Operational quirks learned the hard way: laravel/mcp 0.9 speaks protocol revisio
 | Route | Handler | Access |
 |-------|---------|--------|
 | `/` | NotesIndex (Livewire) | auth |
-| `/notes/{note}` | NoteShow | auth |
+| `/notes/{note:code}` | NoteShow | auth |
 | `/settings/api-tokens` | ApiTokens | auth |
 | `/settings/teams` | TeamSettings | auth |
 | `/admin/users` | Admin/Users | `can:admin` |
 | `/admin/teams` | Admin/Teams | `can:admin` |
 | `/admin/export` | Admin/ExportController | `can:admin` |
+| `/admin/import` | Admin/ImportNotes (Livewire) | `can:admin` |
 | `/api/v1/notes` (apiResource) | Api/V1/NoteController | `auth:sanctum` |
 | `/api/v1/teams` (index only) | Api/V1/TeamController | `auth:sanctum` |
 | `/api/v1/export` | Api/V1/ExportController | `auth:sanctum` + `can:admin` |

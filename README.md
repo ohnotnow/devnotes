@@ -2,7 +2,7 @@
 
 A CLI and MCP for capturing notes during a live coding session.
 
-Somewhere between a wiki and a gist collection. When someone spends an afternoon on a weird Livewire quirk or a database driver difference, the fix gets captured as a quick note and is instantly available to anyone else who is a user of the back-end devnotes app. Notes are plain markdown, everyone can edit everything, nothing is precious. You can also shortcode `#id` to reference related notes.
+Somewhere between a wiki and a gist collection. When someone spends an afternoon on a weird Livewire quirk or a database driver difference, the fix gets captured as a quick note and is instantly available to anyone else who is a user of the back-end devnotes app. Notes are plain markdown, everyone can edit everything, nothing is precious. You can also shortcode `#code` (every note gets a short reference code like `#abq4x`) to reference related notes.
 
 There are three interfaces: a web UI for people, a JSON API for scripts and CLI tools, and an MCP server for coding agents.
 
@@ -42,7 +42,7 @@ Everything under `/api/v1` uses [Laravel Sanctum](https://laravel.com/docs/sanct
 curl -H "Authorization: Bearer $TOKEN" https://your-devnotes-host/api/v1/notes?search=livewire
 ```
 
-The usual REST verbs work: list and search notes, fetch one, create, update (send the full payload, not a partial), and delete (soft, so `#id` references keep resolving). `GET /api/v1/teams` lists every team's id and name, for clients that want to pass `team_ids` when creating or updating notes.
+The usual REST verbs work: list and search notes, fetch one, create, update (send the full payload, not a partial), and delete (soft, so `#code` references keep resolving). `GET /api/v1/teams` lists every team's id and name, for clients that want to pass `team_ids` when creating or updating notes.
 
 ## The MCP server
 
@@ -52,7 +52,7 @@ The MCP endpoint lives at `/mcp` and authenticates with OAuth 2.1. The client di
 claude mcp add --transport http devnotes https://your-devnotes-host/mcp
 ```
 
-Agents get three tools: `search-notes` (id, title and a short snippet per hit, scoped to your teams with a `broader: true` escape hatch), `get-note` (the full markdown, accepts `49` or `#49`), and `add-note` (returns the new note's id, tagging the note with your default teams or the team names you pass). The server's instructions nudge agents to search before debugging from scratch and to suggest capturing a note when a session solves something gnarly.
+Agents get three tools: `search-notes` (code, title and a short snippet per hit, scoped to your teams with a `broader: true` escape hatch), `get-note` (the full markdown, accepts `abq4x` or `#abq4x`), and `add-note` (returns the new note's code, tagging the note with your default teams or the team names you pass). The server's instructions nudge agents to search before debugging from scratch and to suggest capturing a note when a session solves something gnarly.
 
 The OAuth keys come from `php artisan passport:keys` (run it once per environment). On hosts with ephemeral filesystems - Laravel Cloud, Kubernetes, swarm and friends - generate a keypair once and hand it to Passport through the env names it already knows:
 
@@ -73,7 +73,7 @@ On MySQL, MariaDB, and Postgres the `database` driver uses a full-text index on 
 
 ## Teams
 
-Still one pot, but with tuned recall for mixed departments: notes and people can carry teams, and search shows your teams' notes plus any note with no team at all. Nothing is ever hidden - browsing, note pages, and `#id` references ignore teams entirely, and anyone can still read and edit everything. When a scoped search misses, every surface has a broader switch: a toggle next to the web search box, `broader: true` on the MCP tool, `?broader=1` on the API. New notes default to their author's teams, overridable per note. You tune your own subscriptions at `/settings/teams`; admins manage teams and memberships at `/admin/teams`. If you never create a team, nothing changes.
+Still one pot, but with tuned recall for mixed departments: notes and people can carry teams, and search shows your teams' notes plus any note with no team at all. Nothing is ever hidden - browsing, note pages, and `#code` references ignore teams entirely, and anyone can still read and edit everything. When a scoped search misses, every surface has a broader switch: a toggle next to the web search box, `broader: true` on the MCP tool, `?broader=1` on the API. New notes default to their author's teams, overridable per note. You tune your own subscriptions at `/settings/teams`; admins manage teams and memberships at `/admin/teams`. If you never create a team, nothing changes.
 
 ## Backups, export and import
 
@@ -89,7 +89,9 @@ To restore a backup, or migrate the pot to a fresh install:
 php artisan devnotes:import devnotes-backup.json
 ```
 
-Notes keep their original ids, so `#id` cross-references keep working. Ids that already exist are skipped and reported, so re-running an import is always safe. Authors the install doesn't know are created from the file (email, name, and the staff/admin flags - passwords and API tokens never travel) and SSO fills in the rest when they first log in. Teams are matched or created by name. The exact file format is pinned, byte for byte, by `tests/fixtures/export-v1.json`.
+Admins can also import through the web UI at Import in the sidebar: upload the file, get a preview of exactly what will happen (new notes, notes already here with a keep-or-take-the-file's-version choice per note, codes that will be re-minted), then confirm. The web import runs on the queue, so installs without queue workers should set `QUEUE_CONNECTION=sync` in `.env` - the job then runs in-process (it is `sync`, not `null`, which silently discards jobs).
+
+Notes travel with their reference code and a hidden machine identity (a ulid), so `#code` cross-references keep working - including when you merge two teams' pots into one install. Notes the install already has (matched by ulid) are skipped and reported, so re-running an import is always safe. A genuinely new note whose code happens to be taken gets a fresh code minted, and the report tells you so you can tidy any prose that referenced it. Authors the install doesn't know are created from the file (email, name, and the staff/admin flags - passwords and API tokens never travel) and SSO fills in the rest when they first log in. Teams are matched or created by name. The exact file format is pinned, byte for byte, by `tests/fixtures/export-v1.json`.
 
 ## Running tests
 
