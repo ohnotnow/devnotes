@@ -1,6 +1,7 @@
 <?php
 
 use App\Models\Note;
+use App\Models\Team;
 use App\Models\User;
 use Laravel\Sanctum\Sanctum;
 
@@ -29,6 +30,27 @@ it('lists notes newest-first in the documented envelope and filters via search',
     expect($search->json('data.0.title'))->toBe('An older postgres gotcha');
 });
 
+it('scopes search to the token user\'s teams and widens with broader', function () {
+    $developers = Team::factory()->create(['name' => 'developers']);
+    $sysadmins = Team::factory()->create(['name' => 'sysadmins']);
+    $developer = Sanctum::actingAs(User::factory()->create());
+    $developer->teams()->attach($developers);
+    $developerNote = Note::factory()->create(['title' => 'Docker layer cache misses']);
+    $developerNote->teams()->attach($developers);
+    $sysadminNote = Note::factory()->create(['title' => 'Docker daemon log rotation']);
+    $sysadminNote->teams()->attach($sysadmins);
+
+    $scoped = $this->getJson('/api/v1/notes?search=docker');
+    expect($scoped->json('data'))->toHaveCount(1);
+    expect($scoped->json('data.0.id'))->toBe($developerNote->id);
+
+    $broader = $this->getJson('/api/v1/notes?search=docker&broader=1');
+    expect(collect($broader->json('data'))->pluck('id'))->toContain($developerNote->id, $sysadminNote->id);
+
+    $browsing = $this->getJson('/api/v1/notes');
+    expect($browsing->json('data'))->toHaveCount(2);
+});
+
 it('shows a single note as raw markdown', function () {
     Sanctum::actingAs(User::factory()->create());
     $note = Note::factory()->create(['body' => "Some **bold** advice.\n\nSee #12 too."]);
@@ -38,6 +60,16 @@ it('shows a single note as raw markdown', function () {
     $response->assertSuccessful();
     expect($response->json('data.body'))->toBe("Some **bold** advice.\n\nSee #12 too.");
     expect($response->json('data.id'))->toBe($note->id);
+});
+
+it('lists a note\'s team names in the resource', function () {
+    Sanctum::actingAs(User::factory()->create());
+    $taggedNote = Note::factory()->create();
+    $taggedNote->teams()->attach(Team::factory()->create(['name' => 'developers']));
+    $teamlessNote = Note::factory()->create();
+
+    expect($this->getJson("/api/v1/notes/{$taggedNote->id}")->json('data.teams'))->toBe(['developers']);
+    expect($this->getJson("/api/v1/notes/{$teamlessNote->id}")->json('data.teams'))->toBe([]);
 });
 
 it('creates a note owned by the token user and rejects invalid payloads', function () {
@@ -60,6 +92,26 @@ it('creates a note owned by the token user and rejects invalid payloads', functi
     expect(Note::count())->toBe(1);
 });
 
+it('attaches teams on create from the payload or the author\'s defaults', function () {
+    $developers = Team::factory()->create(['name' => 'developers']);
+    $sysadmins = Team::factory()->create(['name' => 'sysadmins']);
+    $tokenUser = Sanctum::actingAs(User::factory()->create());
+    $tokenUser->teams()->attach($developers);
+
+    $defaulted = $this->postJson('/api/v1/notes', ['title' => 'Defaulted', 'body' => 'Body.']);
+    $defaulted->assertCreated();
+    expect(Note::find($defaulted->json('data.id'))->teams()->pluck('teams.id')->all())->toBe([$developers->id]);
+
+    $explicit = $this->postJson('/api/v1/notes', ['title' => 'Explicit', 'body' => 'Body.', 'team_ids' => [$sysadmins->id]]);
+    $explicit->assertCreated();
+    expect(Note::find($explicit->json('data.id'))->teams()->pluck('teams.id')->all())->toBe([$sysadmins->id]);
+
+    $invalid = $this->postJson('/api/v1/notes', ['title' => 'Bad team', 'body' => 'Body.', 'team_ids' => [999]]);
+    $invalid->assertUnprocessable();
+    $invalid->assertJsonValidationErrors(['team_ids.0']);
+    expect(Note::count())->toBe(2);
+});
+
 it('lets any token holder update any note without stealing authorship', function () {
     $author = User::factory()->create();
     $note = Note::factory()->create(['title' => 'Old titel', 'user_id' => $author->id]);
@@ -76,6 +128,26 @@ it('lets any token holder update any note without stealing authorship', function
     $invalid->assertUnprocessable();
     $invalid->assertJsonValidationErrors(['title', 'body']);
     expect($note->fresh()->title)->toBe('Old title, fixed');
+});
+
+it('syncs teams on update only when team_ids is sent', function () {
+    $developers = Team::factory()->create(['name' => 'developers']);
+    $sysadmins = Team::factory()->create(['name' => 'sysadmins']);
+    Sanctum::actingAs(User::factory()->create());
+    $note = Note::factory()->create();
+    $note->teams()->attach($developers);
+
+    $withoutTeams = $this->putJson("/api/v1/notes/{$note->id}", ['title' => 'Updated', 'body' => $note->body]);
+    $withoutTeams->assertSuccessful();
+    expect($note->teams()->pluck('teams.id')->all())->toBe([$developers->id]);
+
+    $withTeams = $this->putJson("/api/v1/notes/{$note->id}", ['title' => 'Updated again', 'body' => $note->body, 'team_ids' => [$sysadmins->id]]);
+    $withTeams->assertSuccessful();
+    expect($note->teams()->pluck('teams.id')->all())->toBe([$sysadmins->id]);
+
+    $cleared = $this->putJson("/api/v1/notes/{$note->id}", ['title' => 'Cleared', 'body' => $note->body, 'team_ids' => []]);
+    $cleared->assertSuccessful();
+    expect($note->teams()->count())->toBe(0);
 });
 
 it('soft-deletes exactly the targeted note', function () {
