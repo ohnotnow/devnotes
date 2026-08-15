@@ -21,7 +21,7 @@
         <div class="space-y-6">
             <div>
                 <flux:heading size="lg" level="2">Delete note #{{ $note->id }}?</flux:heading>
-                <flux:text class="mt-2">Anything referencing #{{ $note->id }} will point at nothing. It can be restored by a developer if needed.</flux:text>
+                <flux:text class="mt-2">Anything referencing #{{ $note->id }} will point at nothing. The note itself stays in the database, so a developer can un-delete it later.</flux:text>
             </div>
             <div class="flex justify-end gap-3">
                 <flux:button x-on:click="$flux.modal('confirm-note-delete').close()" autofocus>Cancel</flux:button>
