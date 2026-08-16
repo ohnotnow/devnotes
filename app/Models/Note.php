@@ -5,6 +5,7 @@ namespace App\Models;
 use App\Http\Resources\ExportNoteResource;
 use Database\Factories\NoteFactory;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Casts\Attribute;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
@@ -79,32 +80,43 @@ class Note extends Model
         return $this->belongsToMany(Team::class);
     }
 
+    /**
+     * Notes as the given user sees them by default: their subscribed teams'
+     * notes plus teamless whole-pot notes, or everything when the user
+     * subscribes to no teams.
+     */
+    public function scopeInTeamsOf(Builder $query, User $user): void
+    {
+        $subscribedTeamIds = $user->subscribedTeams()->pluck('teams.id');
+
+        if ($subscribedTeamIds->isEmpty()) {
+            return;
+        }
+
+        $query->where(function (Builder $query) use ($subscribedTeamIds) {
+            $query->whereDoesntHave('teams')
+                ->orWhereHas('teams', fn ($teams) => $teams->whereIn('teams.id', $subscribedTeamIds));
+        });
+    }
+
     protected function renderedBody(): Attribute
     {
         return Attribute::get(fn (): HtmlString => new HtmlString($this->markdownConverter()->convert($this->body)->getContent()));
     }
 
     /**
-     * Search notes as the given user sees them: their subscribed teams' notes
-     * plus teamless whole-pot notes, or everything when broader (or when the
-     * user subscribes to no teams). Eager loads live here because Scout's
+     * Search notes as the given user sees them (see scopeInTeamsOf), or
+     * everything when broader. Eager loads live here because Scout's
      * Builder::query() replaces its callback - callers must never chain their
      * own ->query() or they silently discard the team scoping.
      */
     public static function searchScoped(User $user, string $search, bool $broader = false): ScoutBuilder
     {
-        $subscribedTeamIds = $user->subscribedTeams()->pluck('teams.id');
-
-        if ($broader || $subscribedTeamIds->isEmpty()) {
+        if ($broader) {
             return static::search($search)->query(fn ($query) => $query->with(['user', 'teams']));
         }
 
-        return static::search($search)->query(function ($query) use ($subscribedTeamIds) {
-            $query->with(['user', 'teams'])->where(function ($query) use ($subscribedTeamIds) {
-                $query->whereDoesntHave('teams')
-                    ->orWhereHas('teams', fn ($teams) => $teams->whereIn('teams.id', $subscribedTeamIds));
-            });
-        });
+        return static::search($search)->query(fn ($query) => $query->with(['user', 'teams'])->inTeamsOf($user));
     }
 
     /**

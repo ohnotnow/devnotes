@@ -2,6 +2,7 @@
 
 use App\Models\Note;
 use App\Models\OAuthUser;
+use App\Models\Team;
 use App\Models\User;
 use Illuminate\Support\Facades\Config;
 use Laravel\Passport\Client;
@@ -139,6 +140,101 @@ it('authenticates a real bearer token through the passport guard and oauth_users
 
     $response->assertSuccessful();
     expect($response->json('result.serverInfo.name'))->toBe('devnotes');
+});
+
+it('embeds a recent-notes digest for the authenticated user in the handshake instructions', function () {
+    $developers = Team::factory()->create(['name' => 'developers']);
+    $developer = User::factory()->create();
+    $developer->teams()->attach($developers);
+    $teamNote = Note::factory()->create(['title' => 'Docker layer cache misses']);
+    $teamNote->teams()->attach($developers);
+    Passport::actingAs(OAuthUser::findOrFail($developer->id));
+
+    $response = $this->postJson('/mcp', [
+        'jsonrpc' => '2.0',
+        'id' => 1,
+        'method' => 'initialize',
+        'params' => [
+            'protocolVersion' => '2025-06-18',
+            'capabilities' => (object) [],
+            'clientInfo' => ['name' => 'pest', 'version' => '1.0'],
+        ],
+    ]);
+
+    $response->assertSuccessful();
+    $instructions = $response->json('result.instructions');
+    expect($instructions)->toContain('call search-notes BEFORE debugging');
+    expect($instructions)->toContain('#'.$teamNote->code);
+    expect($instructions)->toContain('Docker layer cache misses');
+    expect($instructions)->toContain('developers');
+    expect($instructions)->toContain('The pot has 1 note in total');
+});
+
+it('keeps other teams notes out of the digest but includes teamless ones', function () {
+    $developers = Team::factory()->create(['name' => 'developers']);
+    $sysadmins = Team::factory()->create(['name' => 'sysadmins']);
+    $developer = User::factory()->create();
+    $developer->teams()->attach($developers);
+    $teamlessNote = Note::factory()->create(['title' => 'Compose healthcheck gotcha']);
+    $sysadminNote = Note::factory()->create(['title' => 'Daemon log rotation']);
+    $sysadminNote->teams()->attach($sysadmins);
+    Passport::actingAs(OAuthUser::findOrFail($developer->id));
+
+    $response = $this->postJson('/mcp', [
+        'jsonrpc' => '2.0',
+        'id' => 1,
+        'method' => 'initialize',
+        'params' => [
+            'protocolVersion' => '2025-06-18',
+            'capabilities' => (object) [],
+            'clientInfo' => ['name' => 'pest', 'version' => '1.0'],
+        ],
+    ]);
+
+    $instructions = $response->json('result.instructions');
+    expect($instructions)->toContain($teamlessNote->title);
+    expect($instructions)->not->toContain($sysadminNote->title);
+});
+
+it('digests the whole pot for a user with no team subscriptions', function () {
+    $sysadmins = Team::factory()->create(['name' => 'sysadmins']);
+    $userWithoutTeams = User::factory()->create();
+    $sysadminNote = Note::factory()->create(['title' => 'Daemon log rotation']);
+    $sysadminNote->teams()->attach($sysadmins);
+    Passport::actingAs(OAuthUser::findOrFail($userWithoutTeams->id));
+
+    $response = $this->postJson('/mcp', [
+        'jsonrpc' => '2.0',
+        'id' => 1,
+        'method' => 'initialize',
+        'params' => [
+            'protocolVersion' => '2025-06-18',
+            'capabilities' => (object) [],
+            'clientInfo' => ['name' => 'pest', 'version' => '1.0'],
+        ],
+    ]);
+
+    expect($response->json('result.instructions'))->toContain($sysadminNote->title);
+});
+
+it('serves plain habit-text instructions when the pot is empty', function () {
+    $user = User::factory()->create();
+    Passport::actingAs(OAuthUser::findOrFail($user->id));
+
+    $response = $this->postJson('/mcp', [
+        'jsonrpc' => '2.0',
+        'id' => 1,
+        'method' => 'initialize',
+        'params' => [
+            'protocolVersion' => '2025-06-18',
+            'capabilities' => (object) [],
+            'clientInfo' => ['name' => 'pest', 'version' => '1.0'],
+        ],
+    ]);
+
+    $instructions = $response->json('result.instructions');
+    expect($instructions)->toContain('call search-notes BEFORE debugging');
+    expect($instructions)->not->toContain('Recently updated notes');
 });
 
 it('completes an mcp handshake for an authenticated user', function () {

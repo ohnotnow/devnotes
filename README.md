@@ -52,7 +52,7 @@ The MCP endpoint lives at `/mcp` and authenticates with OAuth 2.1. The client di
 claude mcp add --transport http devnotes https://your-devnotes-host/mcp
 ```
 
-Agents get three tools: `search-notes` (code, title and a short snippet per hit, scoped to your teams with a `broader: true` escape hatch), `get-note` (the full markdown, accepts `abq4x` or `#abq4x`), and `add-note` (returns the new note's code, tagging the note with your default teams or the team names you pass). The server's instructions nudge agents to search before debugging from scratch and to suggest capturing a note when a session solves something gnarly.
+Agents get three tools: `search-notes` (code, title and a short snippet per hit, scoped to your teams with a `broader: true` escape hatch), `get-note` (the full markdown, accepts `abq4x` or `#abq4x`), and `add-note` (returns the new note's code, tagging the note with your default teams or the team names you pass). The server's instructions nudge agents to search before debugging from scratch and to suggest capturing a note when a session solves something gnarly - and they carry a per-user digest of the ten most recently updated notes in your teams, so every new session starts with recent team knowledge already in context.
 
 The OAuth keys come from `php artisan passport:keys` (run it once per environment). On hosts with ephemeral filesystems - Laravel Cloud, Kubernetes, swarm and friends - generate a keypair once and hand it to Passport through the env names it already knows:
 
