@@ -58,6 +58,15 @@ it('never shows other peoples notes or the show-all switch to a regular user', f
         ->assertDontSee('Someone elses gotcha');
 });
 
+it('offers the preview from both the code badge and the title', function () {
+    $user = User::factory()->create();
+    $note = Note::factory()->create(['user_id' => $user->id]);
+
+    $response = $this->actingAs($user)->get(route('tidy'));
+
+    expect(substr_count($response->getContent(), 'wire:click="preview('.$note->id.')"'))->toBe(2);
+});
+
 it('previews a note in the flyout without bumping its read tracking', function () {
     // The flyout is triage, not a deliberate read - bumping would corrupt the
     // very heuristic the screen displays.

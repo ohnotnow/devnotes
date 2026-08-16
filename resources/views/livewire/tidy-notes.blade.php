@@ -45,7 +45,9 @@
                             title="Preview #{{ $note->code }}"
                         >#{{ $note->code }}</flux:badge>
                     </flux:table.cell>
-                    <flux:table.cell variant="strong">{{ $note->title }}</flux:table.cell>
+                    <flux:table.cell variant="strong">
+                        <flux:link as="button" wire:key="preview-title-{{ $note->id }}" wire:click="preview({{ $note->id }})">{{ $note->title }}</flux:link>
+                    </flux:table.cell>
                     @if ($showingAll)
                         <flux:table.cell>{{ $note->user->full_name }}</flux:table.cell>
                     @endif
