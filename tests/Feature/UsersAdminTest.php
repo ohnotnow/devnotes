@@ -4,6 +4,7 @@ use App\Livewire\Admin\Users;
 use App\Models\Note;
 use App\Models\Team;
 use App\Models\User;
+use Illuminate\Support\Facades\Auth;
 use Livewire\Livewire;
 
 it('adds a stub user by email and rejects blanks and duplicates', function () {
@@ -13,7 +14,7 @@ it('adds a stub user by email and rejects blanks and duplicates', function () {
     Livewire::actingAs($admin)
         ->test(Users::class)
         ->set('email', '  Fresh@Example.Test ')
-        ->call('add')
+        ->call('save')
         ->assertHasNoErrors();
 
     $stubUser = User::where('email', 'fresh@example.test')->sole();
@@ -23,13 +24,13 @@ it('adds a stub user by email and rejects blanks and duplicates', function () {
     Livewire::actingAs($admin)
         ->test(Users::class)
         ->set('email', '')
-        ->call('add')
+        ->call('save')
         ->assertHasErrors(['email']);
 
     Livewire::actingAs($admin)
         ->test(Users::class)
         ->set('email', 'taken@example.test')
-        ->call('add')
+        ->call('save')
         ->assertHasErrors(['email']);
 
     expect(User::count())->toBe(3);
@@ -44,7 +45,7 @@ it('adds a user with their teams subscribed and set as note defaults', function 
         ->test(Users::class)
         ->set('email', 'newbie@example.test')
         ->set('selectedTeamIds', [$developers->id])
-        ->call('add')
+        ->call('save')
         ->assertHasNoErrors();
 
     $newUser = User::where('email', 'newbie@example.test')->sole();
@@ -62,10 +63,10 @@ it('edits an existing user\'s teams from the table', function () {
 
     Livewire::actingAs($admin)
         ->test(Users::class)
-        ->call('openTeams', $mover->id)
+        ->call('openEdit', $mover->id)
         ->assertSet('selectedTeamIds', [$developers->id])
         ->set('selectedTeamIds', [$sysadmins->id])
-        ->call('saveTeams')
+        ->call('save')
         ->assertHasNoErrors();
 
     expect($mover->refresh()->subscribedTeams()->pluck('teams.id')->all())->toBe([$sysadmins->id]);
@@ -83,14 +84,14 @@ it('flattens a user\'s per-team fine-tuning when an admin saves their teams', fu
 
     Livewire::actingAs($admin)
         ->test(Users::class)
-        ->call('openTeams', $tuner->id)
-        ->call('saveTeams')
+        ->call('openEdit', $tuner->id)
+        ->call('save')
         ->assertHasNoErrors();
 
     expect($tuner->refresh()->defaultNoteTeams()->pluck('teams.id')->all())->toBe([$developers->id]);
 });
 
-it('does not leak a cancelled teams edit into the add-person form', function () {
+it('does not leak a cancelled edit into the add-person form', function () {
     $admin = User::factory()->create(['is_admin' => true]);
     $developers = Team::factory()->create(['name' => 'developers']);
     $existingMember = User::factory()->create();
@@ -98,12 +99,13 @@ it('does not leak a cancelled teams edit into the add-person form', function () 
 
     Livewire::actingAs($admin)
         ->test(Users::class)
-        ->call('openTeams', $existingMember->id)
+        ->call('openEdit', $existingMember->id)
         ->assertSet('selectedTeamIds', [$developers->id])
         ->call('openAdd')
         ->assertSet('selectedTeamIds', [])
+        ->assertSet('email', '')
         ->set('email', 'newbie@example.test')
-        ->call('add')
+        ->call('save')
         ->assertHasNoErrors();
 
     expect(User::where('email', 'newbie@example.test')->sole()->teams)->toHaveCount(0);
@@ -205,4 +207,182 @@ it('lets admins in and keeps everyone else out', function () {
     $this->get(route('admin.users'))->assertRedirect(route('login'));
     $this->actingAs($regularUser)->get(route('admin.users'))->assertForbidden();
     $this->actingAs($admin)->get(route('admin.users'))->assertSuccessful();
+});
+
+it('creates a working login with a revealed temporary password when sso is off', function () {
+    config(['sso.enabled' => false]);
+    $admin = User::factory()->create(['is_admin' => true]);
+
+    $component = Livewire::actingAs($admin)
+        ->test(Users::class)
+        ->set('email', 'newbie@example.test')
+        ->set('username', 'newbie1x')
+        ->set('forenames', 'New')
+        ->set('surname', 'Person')
+        ->call('save')
+        ->assertHasNoErrors();
+
+    $newUser = User::where('email', 'newbie@example.test')->sole();
+    expect($newUser->username)->toBe('newbie1x');
+    expect($newUser->full_name)->toBe('New Person');
+    expect($newUser->must_change_password)->toBeTrue();
+
+    $temporaryPassword = $component->get('newTempPassword');
+    expect($temporaryPassword)->not->toBe('');
+
+    Auth::logout();
+    $this->post(route('login.local'), ['username' => 'newbie1x', 'password' => $temporaryPassword])
+        ->assertRedirect(route('home'));
+    $this->assertAuthenticatedAs($newUser);
+});
+
+it('surfaces the temporary password for copying after a non-sso add', function () {
+    config(['sso.enabled' => false]);
+    $admin = User::factory()->create(['is_admin' => true]);
+
+    $component = Livewire::actingAs($admin)
+        ->test(Users::class)
+        ->set('email', 'newbie@example.test')
+        ->set('username', 'newbie1x')
+        ->call('save')
+        ->assertHasNoErrors();
+
+    $temporaryPassword = $component->get('newTempPassword');
+    expect($temporaryPassword)->not->toBeEmpty();
+    $component->assertSee($temporaryPassword);
+
+    // Blade directives are NOT compiled inside component tag attributes, so a
+    // literal @js( reaching the browser means the copy button's Alpine
+    // expression is broken (illegal character U+0040).
+    $component->assertDontSee('@js(');
+});
+
+it('requires a unique username to add someone when sso is off', function () {
+    config(['sso.enabled' => false]);
+    $admin = User::factory()->create(['is_admin' => true]);
+    User::factory()->create(['username' => 'taken1x']);
+
+    Livewire::actingAs($admin)
+        ->test(Users::class)
+        ->set('email', 'newbie@example.test')
+        ->set('username', '')
+        ->call('save')
+        ->assertHasErrors(['username']);
+
+    Livewire::actingAs($admin)
+        ->test(Users::class)
+        ->set('email', 'newbie@example.test')
+        ->set('username', 'taken1x')
+        ->call('save')
+        ->assertHasErrors(['username']);
+
+    expect(User::where('email', 'newbie@example.test')->exists())->toBeFalse();
+    expect(User::count())->toBe(2);
+});
+
+it('edits a person\'s details and teams from the flyout when sso is off', function () {
+    config(['sso.enabled' => false]);
+    $admin = User::factory()->create(['is_admin' => true]);
+    $developers = Team::factory()->create(['name' => 'developers']);
+    $fatFingered = User::factory()->create([
+        'email' => 'wrong@example.test',
+        'username' => 'wrong1x',
+        'forenames' => 'Wrng',
+        'surname' => 'Persn',
+    ]);
+
+    Livewire::actingAs($admin)
+        ->test(Users::class)
+        ->call('openEdit', $fatFingered->id)
+        ->set('email', 'right@example.test')
+        ->set('username', 'right1x')
+        ->set('forenames', 'Right')
+        ->set('surname', 'Person')
+        ->set('selectedTeamIds', [$developers->id])
+        ->call('save')
+        ->assertHasNoErrors();
+
+    $fatFingered->refresh();
+    expect($fatFingered->email)->toBe('right@example.test');
+    expect($fatFingered->username)->toBe('right1x');
+    expect($fatFingered->full_name)->toBe('Right Person');
+    expect($fatFingered->teams()->pluck('teams.id')->all())->toBe([$developers->id]);
+    expect(User::count())->toBe(2);
+});
+
+it('lets an sso-mode edit change teams but never identity details', function () {
+    $admin = User::factory()->create(['is_admin' => true]);
+    $developers = Team::factory()->create(['name' => 'developers']);
+    $ssoOwned = User::factory()->create([
+        'email' => 'sso@example.test',
+        'username' => 'sso1x',
+        'forenames' => 'Sso',
+        'surname' => 'Person',
+    ]);
+
+    // A crafted request can set any public property - the disabled fields in
+    // the UI are presentation, this guards the server side.
+    Livewire::actingAs($admin)
+        ->test(Users::class)
+        ->call('openEdit', $ssoOwned->id)
+        ->set('email', 'hijacked@example.test')
+        ->set('username', 'hijacked1x')
+        ->set('forenames', 'Hi')
+        ->set('surname', 'Jacked')
+        ->set('selectedTeamIds', [$developers->id])
+        ->call('save')
+        ->assertHasNoErrors();
+
+    $ssoOwned->refresh();
+    expect($ssoOwned->email)->toBe('sso@example.test');
+    expect($ssoOwned->username)->toBe('sso1x');
+    expect($ssoOwned->full_name)->toBe('Sso Person');
+    expect($ssoOwned->teams()->pluck('teams.id')->all())->toBe([$developers->id]);
+});
+
+it('regenerates a working temporary password only when sso is off', function () {
+    $admin = User::factory()->create(['is_admin' => true]);
+    $forgetful = User::factory()->create(['username' => 'forgetful1x', 'password' => bcrypt('old-password')]);
+
+    $ssoStillOn = Livewire::actingAs($admin)
+        ->test(Users::class)
+        ->call('openEdit', $forgetful->id)
+        ->call('regeneratePassword');
+    expect($ssoStillOn->get('newTempPassword'))->toBe('');
+    expect($forgetful->refresh()->must_change_password)->toBeFalse();
+
+    config(['sso.enabled' => false]);
+
+    $component = Livewire::actingAs($admin)
+        ->test(Users::class)
+        ->call('openEdit', $forgetful->id)
+        ->call('regeneratePassword')
+        ->assertHasNoErrors();
+
+    $temporaryPassword = $component->get('newTempPassword');
+    expect($temporaryPassword)->not->toBeEmpty();
+    expect($forgetful->refresh()->must_change_password)->toBeTrue();
+
+    Auth::logout();
+    $this->post(route('login.local'), ['username' => 'forgetful1x', 'password' => 'old-password'])
+        ->assertSessionHasErrors(['username']);
+    $this->assertGuest();
+
+    $this->post(route('login.local'), ['username' => 'forgetful1x', 'password' => $temporaryPassword])
+        ->assertRedirect(route('home'));
+    $this->assertAuthenticatedAs($forgetful);
+});
+
+it('keeps the sso add flow free of temporary passwords', function () {
+    $admin = User::factory()->create(['is_admin' => true]);
+
+    $component = Livewire::actingAs($admin)
+        ->test(Users::class)
+        ->set('email', 'newbie@example.test')
+        ->call('save')
+        ->assertHasNoErrors();
+
+    $stubUser = User::where('email', 'newbie@example.test')->sole();
+    expect($stubUser->must_change_password)->toBeFalse();
+    expect($component->get('newTempPassword'))->toBe('');
 });

@@ -2,11 +2,33 @@
     <div class="flex items-start gap-3">
         <div>
             <flux:heading size="xl" level="1">Users</flux:heading>
-            <flux:text class="mt-2">Anyone listed here can sign in through SSO. Add someone by email and their details fill in on their first login.</flux:text>
+            @if (config('sso.enabled'))
+                <flux:text class="mt-2">Anyone listed here can sign in through SSO. Add someone by email and their details fill in on their first login.</flux:text>
+            @else
+                <flux:text class="mt-2">Add someone with their details and hand them the generated temporary password.</flux:text>
+            @endif
         </div>
         <flux:spacer />
         <flux:button variant="primary" icon="plus" wire:click="openAdd">Add person</flux:button>
     </div>
+
+    @if ($newTempPassword !== '')
+        <flux:callout variant="success" icon="key" class="mt-6">
+            <flux:callout.heading>Copy this temporary password now - you will not see it again</flux:callout.heading>
+            <flux:callout.text>
+                <span class="font-mono break-all">{{ $newTempPassword }}</span>
+            </flux:callout.text>
+            <x-slot name="actions">
+                <flux:button
+                    size="sm"
+                    icon="clipboard-document"
+                    x-data
+                    {{-- {{ Js::from() }}, not @js(): Blade directives are not compiled inside component tag attributes. --}}
+                    x-on:click="navigator.clipboard.writeText({{ Illuminate\Support\Js::from($newTempPassword) }}); $flux.toast('Password copied to clipboard')"
+                >Copy</flux:button>
+            </x-slot>
+        </flux:callout>
+    @endif
 
     <flux:table class="mt-6">
         <flux:table.columns>
@@ -29,18 +51,11 @@
                     </flux:table.cell>
                     <flux:table.cell>{{ $user->username !== '' ? $user->username : 'awaiting first login' }}</flux:table.cell>
                     <flux:table.cell>
-                        <button
-                            type="button"
-                            class="cursor-pointer"
-                            wire:click="openTeams({{ $user->id }})"
-                            aria-label="Edit teams for {{ $user->full_name !== '' ? $user->full_name : $user->email }}"
-                        >
-                            @forelse ($user->teams as $team)
-                                <flux:badge color="sky" size="sm" inset="top bottom">{{ $team->name }}</flux:badge>
-                            @empty
-                                <flux:badge color="zinc" size="sm" inset="top bottom">no teams</flux:badge>
-                            @endforelse
-                        </button>
+                        @forelse ($user->teams as $team)
+                            <flux:badge color="sky" size="sm" inset="top bottom">{{ $team->name }}</flux:badge>
+                        @empty
+                            <flux:badge color="zinc" size="sm" inset="top bottom">no teams</flux:badge>
+                        @endforelse
                     </flux:table.cell>
                     <flux:table.cell>{{ $user->notes_count }}</flux:table.cell>
                     <flux:table.cell>
@@ -55,6 +70,12 @@
                         @endif
                     </flux:table.cell>
                     <flux:table.cell align="end">
+                        <flux:button
+                            size="sm"
+                            icon="pencil"
+                            wire:click="openEdit({{ $user->id }})"
+                            aria-label="Edit {{ $user->full_name !== '' ? $user->full_name : $user->email }}"
+                        >Edit</flux:button>
                         @unless ($user->is(auth()->user()))
                             <flux:button
                                 size="sm"
@@ -74,45 +95,47 @@
     <flux:modal name="user-add" variant="flyout" class="md:w-96">
         <div class="space-y-6">
             <div>
-                <flux:heading size="lg" level="2">Add a person</flux:heading>
-                <flux:text class="mt-2">Use their university email address, the one SSO reports. Everything else fills in when they first log in.</flux:text>
+                <flux:heading size="lg" level="2">
+                    {{ $editingUser ? 'Edit '.($editingUser->full_name !== '' ? $editingUser->full_name : $editingUser->email) : 'Add a person' }}
+                </flux:heading>
+                @if (! $editingUser)
+                    @if (config('sso.enabled'))
+                        <flux:text class="mt-2">Use their university email address, the one SSO reports. Everything else fills in when they first log in.</flux:text>
+                    @else
+                        <flux:text class="mt-2">They log in with the username and a temporary password shown after you add them.</flux:text>
+                    @endif
+                @endif
             </div>
 
-            <flux:input wire:model="email" label="Email" type="email" placeholder="someone@example.ac.uk" autofocus />
+            <flux:input wire:model="email" label="Email" type="email" placeholder="someone@example.ac.uk" autofocus :disabled="config('sso.enabled') && $editingUser !== null" />
+
+            <flux:fieldset :disabled="config('sso.enabled')" :description="config('sso.enabled') ? 'These details come from SSO.' : null">
+                <flux:input wire:model="username" label="Username" />
+                <flux:input wire:model="forenames" label="Forenames" />
+                <flux:input wire:model="surname" label="Surname" />
+            </flux:fieldset>
 
             @if ($teams->isNotEmpty())
-                <flux:checkbox.group wire:model="selectedTeamIds" label="Teams" description="Their search follows these teams, and their notes default here. They can fine-tune it themselves later.">
+                <flux:checkbox.group
+                    wire:model="selectedTeamIds"
+                    label="Teams"
+                    :description="$editingUser
+                        ? 'Saving here resets their per-team fine-tuning to the simple case: read and post to every ticked team.'
+                        : 'Their search follows these teams, and their notes default here. They can fine-tune it themselves later.'"
+                >
                     @foreach ($teams as $team)
-                        <flux:checkbox :value="$team->id" :label="$team->name" wire:key="add-team-{{ $team->id }}" />
+                        <flux:checkbox :value="$team->id" :label="$team->name" wire:key="form-team-{{ $team->id }}" />
                     @endforeach
                 </flux:checkbox.group>
             @endif
 
-            <div class="flex justify-end gap-3">
+            <div class="flex items-center gap-3">
+                @if ($editingUser && ! config('sso.enabled'))
+                    <flux:button icon="arrow-path" wire:click="regeneratePassword">New password</flux:button>
+                @endif
+                <flux:spacer />
                 <flux:button x-on:click="$flux.modal('user-add').close()">Cancel</flux:button>
-                <flux:button variant="primary" wire:click="add">Add</flux:button>
-            </div>
-        </div>
-    </flux:modal>
-
-    <flux:modal name="user-teams" variant="flyout" class="md:w-96">
-        <div class="space-y-6">
-            <div>
-                <flux:heading size="lg" level="2">Teams for {{ $editingTeamsUser?->full_name !== '' ? $editingTeamsUser?->full_name : $editingTeamsUser?->email }}</flux:heading>
-                <flux:text class="mt-2">Saving here resets their per-team fine-tuning to the simple case: read and post to every ticked team.</flux:text>
-            </div>
-
-            @if ($teams->isNotEmpty())
-                <flux:checkbox.group wire:model="selectedTeamIds" label="Teams" aria-label="Teams for this user">
-                    @foreach ($teams as $team)
-                        <flux:checkbox :value="$team->id" :label="$team->name" wire:key="edit-team-{{ $team->id }}" />
-                    @endforeach
-                </flux:checkbox.group>
-            @endif
-
-            <div class="flex justify-end gap-3">
-                <flux:button x-on:click="$flux.modal('user-teams').close()">Cancel</flux:button>
-                <flux:button variant="primary" wire:click="saveTeams">Save teams</flux:button>
+                <flux:button variant="primary" wire:click="save">{{ $editingUser ? 'Save' : 'Add' }}</flux:button>
             </div>
         </div>
     </flux:modal>

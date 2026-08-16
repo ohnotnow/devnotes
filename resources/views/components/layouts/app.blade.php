@@ -37,6 +37,9 @@
                 <flux:sidebar.nav aria-label="Account">
                     <flux:sidebar.item icon="user-group" :href="route('team-settings')" wire:navigate>My teams</flux:sidebar.item>
                     <flux:sidebar.item icon="key" :href="route('api-tokens')" wire:navigate>API tokens</flux:sidebar.item>
+                    @if (! config('sso.enabled'))
+                        <flux:sidebar.item icon="lock-closed" :href="route('change-password')" wire:navigate>Change password</flux:sidebar.item>
+                    @endif
                     <form method="post" action="{{ route('auth.logout') }}">
                         @csrf
                         <flux:sidebar.item tooltip="Logout" icon="arrow-right-start-on-rectangle" type="submit">Logout</flux:sidebar.item>
