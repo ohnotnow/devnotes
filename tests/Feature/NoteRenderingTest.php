@@ -22,6 +22,22 @@ it('links #code cross-references to the referenced note', function () {
     expect($html)->toContain('#abq4x</a>');
 });
 
+it('renders mentions of soft-deleted notes in amber, still linked', function () {
+    // Fresh make() per render: rendered_body is an object-valued accessor, so
+    // Laravel caches it per model instance - one instance would render once.
+    $referencedNote = Note::factory()->create(['code' => 'abq4x']);
+    $body = 'For the original write-up see #abq4x and move on.';
+
+    expect((string) Note::factory()->make(['body' => $body])->rendered_body)->not->toContain('text-amber');
+
+    $referencedNote->delete();
+
+    $html = (string) Note::factory()->make(['body' => $body])->rendered_body;
+    expect($html)->toContain('text-amber-600');
+    expect($html)->toContain(route('notes.show', 'abq4x'));
+    expect($html)->toContain('#abq4x</a>');
+});
+
 it('leaves wrong-shaped references as plain text', function () {
     $note = Note::factory()->make(['body' => 'Old style #15, too-short #abq4, too-long #abq4xy, tail-cased #abq4xY and shouty #ABQ4X stay plain.']);
 

@@ -45,6 +45,13 @@ class Note extends Model
 
     public const CODE_LENGTH = 5;
 
+    protected function casts(): array
+    {
+        return [
+            'last_read_at' => 'datetime',
+        ];
+    }
+
     protected static function booted(): void
     {
         static::creating(function (Note $note) {
@@ -167,6 +174,17 @@ class Note extends Model
         return $code;
     }
 
+    /**
+     * A deliberate full read of the note, from any surface. Guarded twice:
+     * withoutTimestamps because updated_at drives the session-start digest and
+     * a read must never resurface a note there; quiet because Note is
+     * Scout-searchable and a plain increment would queue a re-index per read.
+     */
+    public function incrementReadCount(): void
+    {
+        static::withoutTimestamps(fn () => $this->incrementQuietly('read_count', 1, ['last_read_at' => now()]));
+    }
+
     private function markdownConverter(): MarkdownConverter
     {
         $environment = new Environment([
@@ -179,6 +197,10 @@ class Note extends Model
                     'pattern' => '(?-i:['.self::CODE_ALPHABET.']{'.self::CODE_LENGTH.'}(?![a-zA-Z0-9]))',
                     'generator' => function (Mention $mention) {
                         $mention->setUrl(route('notes.show', $mention->getIdentifier()));
+
+                        if (static::onlyTrashed()->where('code', $mention->getIdentifier())->exists()) {
+                            $mention->data->set('attributes/class', 'text-amber-600 dark:text-amber-400');
+                        }
 
                         return $mention;
                     },

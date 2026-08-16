@@ -4,6 +4,7 @@ namespace App\Mcp\Tools;
 
 use App\Models\Note;
 use App\Models\Team;
+use App\Models\User;
 use Illuminate\Contracts\JsonSchema\JsonSchema;
 use Illuminate\JsonSchema\Types\Type;
 use Laravel\Mcp\Request;
@@ -36,10 +37,25 @@ class AddNote extends Tool
             ? Team::whereIn('name', $validated['teams'])->pluck('id')->all()
             : null);
 
-        return Response::json([
+        $payload = [
             'code' => $note->code,
             'title' => $note->title,
-        ]);
+        ];
+
+        $user = User::findOrFail($request->user()->id);
+        $similarNotes = Note::searchScoped($user, $note->title)->take(4)->get()
+            ->reject(fn (Note $found) => $found->is($note))
+            ->take(3);
+
+        if ($similarNotes->isNotEmpty()) {
+            $payload['similar_notes'] = $similarNotes->map(fn (Note $found) => [
+                'code' => $found->code,
+                'title' => $found->title,
+            ])->values()->all();
+            $payload['hint'] = 'These existing notes may cover the same ground. If one does, update-note can merge this finding into it instead.';
+        }
+
+        return Response::json($payload);
     }
 
     /**

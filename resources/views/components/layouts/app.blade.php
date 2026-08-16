@@ -25,6 +25,7 @@
                 </flux:sidebar.header>
                 <flux:sidebar.nav aria-label="Primary">
                     <flux:sidebar.item icon="document-text" :href="route('home')" wire:navigate>Notes</flux:sidebar.item>
+                    <flux:sidebar.item icon="sparkles" :href="route('tidy')" wire:navigate>Tidy</flux:sidebar.item>
                     @can('admin')
                         <flux:separator class="my-2" />
                         <flux:sidebar.item icon="users" :href="route('admin.users')" wire:navigate>Users</flux:sidebar.item>

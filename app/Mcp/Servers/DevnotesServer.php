@@ -5,6 +5,7 @@ namespace App\Mcp\Servers;
 use App\Mcp\Tools\AddNote;
 use App\Mcp\Tools\GetNote;
 use App\Mcp\Tools\SearchNotes;
+use App\Mcp\Tools\UpdateNote;
 use App\Models\Note;
 use App\Models\User;
 use Illuminate\Support\Str;
@@ -23,6 +24,7 @@ class DevnotesServer extends Server
         AddNote::class,
         SearchNotes::class,
         GetNote::class,
+        UpdateNote::class,
     ];
 
     protected array $resources = [

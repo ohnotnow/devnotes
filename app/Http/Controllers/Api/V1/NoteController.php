@@ -35,6 +35,8 @@ class NoteController extends Controller
 
     public function show(Note $note)
     {
+        $note->incrementReadCount();
+
         return new NoteResource($note);
     }
 

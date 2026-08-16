@@ -42,7 +42,7 @@ Everything under `/api/v1` uses [Laravel Sanctum](https://laravel.com/docs/sanct
 curl -H "Authorization: Bearer $TOKEN" https://your-devnotes-host/api/v1/notes?search=livewire
 ```
 
-The usual REST verbs work: list and search notes, fetch one, create, update (send the full payload, not a partial), and delete (soft, so `#code` references keep resolving). `GET /api/v1/teams` lists every team's id and name, for clients that want to pass `team_ids` when creating or updating notes.
+The usual REST verbs work: list and search notes, fetch one, create, update (send the full payload, not a partial), and delete. Deletes are soft: the note disappears from listings and search, but fetching it by code still works and the response carries a `deleted_at` timestamp - so `#code` references keep resolving. `GET /api/v1/teams` lists every team's id and name, for clients that want to pass `team_ids` when creating or updating notes.
 
 ## The MCP server
 
@@ -52,7 +52,7 @@ The MCP endpoint lives at `/mcp` and authenticates with OAuth 2.1. The client di
 claude mcp add --transport http devnotes https://your-devnotes-host/mcp
 ```
 
-Agents get three tools: `search-notes` (code, title and a short snippet per hit, scoped to your teams with a `broader: true` escape hatch), `get-note` (the full markdown, accepts `abq4x` or `#abq4x`), and `add-note` (returns the new note's code, tagging the note with your default teams or the team names you pass). The server's instructions nudge agents to search before debugging from scratch and to suggest capturing a note when a session solves something gnarly - and they carry a per-user digest of the ten most recently updated notes in your teams, so every new session starts with recent team knowledge already in context.
+Agents get four tools: `search-notes` (code, title and a short snippet per hit, scoped to your teams with a `broader: true` escape hatch), `get-note` (the full markdown, accepts `abq4x` or `#abq4x`; a deleted note still comes back, flagged with its `deleted_at`), `add-note` (returns the new note's code, tagging the note with your default teams or the team names you pass), and `update-note` (changes a note's title or body by code, so a finding that evolves mid-session updates the existing note instead of spawning a near-duplicate). When `add-note` spots similar-titled notes already in your teams, its response lists them under `similar_notes` with a hint to merge via `update-note` - the note is still created, capture is never blocked. The server's instructions nudge agents to search before debugging from scratch and to suggest capturing a note when a session solves something gnarly - and they carry a per-user digest of the ten most recently updated notes in your teams, so every new session starts with recent team knowledge already in context.
 
 The OAuth keys come from `php artisan passport:keys` (run it once per environment). On hosts with ephemeral filesystems - Laravel Cloud, Kubernetes, swarm and friends - generate a keypair once and hand it to Passport through the env names it already knows:
 
@@ -74,6 +74,12 @@ On MySQL, MariaDB, and Postgres the `database` driver uses a full-text index on 
 ## Teams
 
 Still one pot, but with tuned recall for mixed departments: notes and people can carry teams, and search shows your teams' notes plus any note with no team at all. Nothing is ever hidden - browsing, note pages, and `#code` references ignore teams entirely, and anyone can still read and edit everything. When a scoped search misses, every surface has a broader switch: a toggle next to the web search box, `broader: true` on the MCP tool, `?broader=1` on the API. New notes default to their author's teams, overridable per note. You tune your own subscriptions at `/settings/teams`; admins manage teams and memberships at `/admin/teams`. If you never create a team, nothing changes.
+
+## Tidying the pot
+
+Notes go stale, and nothing kills trust in a shared pot faster than advice about PHP 5.3. Every deliberate read of a note - a visit to its page, an API fetch, an MCP `get-note` - counts towards a per-note read tally; searches and listings don't. The Tidy page in the sidebar lists your notes least-read first with their read counts and last-read dates, plus a preview flyout and a delete button, so a two-minute scan catches the dead wood. Admins get a "show all notes" toggle for whole-pot tidying. The counts only ever inform: nothing is deleted or demoted automatically.
+
+Deleting never breaks references. A deleted note disappears from search, the notes list, and agents' digests, but its page stays reachable from `#code` links in other notes - with a banner showing when it was deleted and a Restore button to bring it back. Mentions of a deleted note render in amber, so you know before you click.
 
 ## Backups, export and import
 

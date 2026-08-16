@@ -8,12 +8,14 @@ use App\Livewire\ApiTokens;
 use App\Livewire\NoteShow;
 use App\Livewire\NotesIndex;
 use App\Livewire\TeamSettings;
+use App\Livewire\TidyNotes;
 use Illuminate\Support\Facades\Route;
 
 require __DIR__.'/sso-auth.php';
 Route::middleware('auth')->group(function () {
     Route::get('/', NotesIndex::class)->name('home');
-    Route::get('/notes/{note:code}', NoteShow::class)->name('notes.show');
+    Route::get('/notes/{note:code}', NoteShow::class)->name('notes.show')->withTrashed();
+    Route::get('/tidy', TidyNotes::class)->name('tidy');
     Route::get('/settings/api-tokens', ApiTokens::class)->name('api-tokens');
     Route::get('/settings/teams', TeamSettings::class)->name('team-settings');
 

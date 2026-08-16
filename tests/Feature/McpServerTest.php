@@ -198,6 +198,30 @@ it('keeps other teams notes out of the digest but includes teamless ones', funct
     expect($instructions)->not->toContain($sysadminNote->title);
 });
 
+it('keeps trashed notes out of the digest and its pot count', function () {
+    $user = User::factory()->create();
+    Note::factory()->create(['title' => 'A live gotcha']);
+    $trashedNote = Note::factory()->create(['title' => 'A binned gotcha']);
+    $trashedNote->delete();
+    Passport::actingAs(OAuthUser::findOrFail($user->id));
+
+    $response = $this->postJson('/mcp', [
+        'jsonrpc' => '2.0',
+        'id' => 1,
+        'method' => 'initialize',
+        'params' => [
+            'protocolVersion' => '2025-06-18',
+            'capabilities' => (object) [],
+            'clientInfo' => ['name' => 'pest', 'version' => '1.0'],
+        ],
+    ]);
+
+    $instructions = $response->json('result.instructions');
+    expect($instructions)->toContain('A live gotcha');
+    expect($instructions)->not->toContain('A binned gotcha');
+    expect($instructions)->toContain('The pot has 1 note in total');
+});
+
 it('digests the whole pot for a user with no team subscriptions', function () {
     $sysadmins = Team::factory()->create(['name' => 'sysadmins']);
     $userWithoutTeams = User::factory()->create();

@@ -4,6 +4,7 @@ use App\Mcp\Servers\DevnotesServer;
 use App\Mcp\Tools\AddNote;
 use App\Mcp\Tools\GetNote;
 use App\Mcp\Tools\SearchNotes;
+use App\Mcp\Tools\UpdateNote;
 use App\Models\Note;
 use App\Models\OAuthUser;
 use App\Models\Team;
@@ -208,6 +209,58 @@ it('attaches teams on add-note from names, defaults, or a deliberate empty list'
     expect(Note::where('title', 'Bad team note')->exists())->toBeFalse();
 });
 
+it('returns similar notes from add-note as a dup nudge while still creating', function () {
+    $developers = Team::factory()->create(['name' => 'developers']);
+    $agentUser = User::factory()->create();
+    $agentUser->teams()->attach($developers);
+    $existingNote = Note::factory()->create(['title' => 'Docker layer cache misses on multi-stage builds']);
+    $existingNote->teams()->attach($developers);
+
+    $response = DevnotesServer::actingAs(OAuthUser::findOrFail($agentUser->id))->tool(AddNote::class, [
+        'title' => 'Docker layer cache misses',
+        'body' => 'Body.',
+    ]);
+
+    $response->assertOk();
+    // The exact fragment pins one entry: the existing note, never the new note itself.
+    $response->assertSee('"similar_notes":[{"code":"'.$existingNote->code.'","title":"Docker layer cache misses on multi-stage builds"}]');
+    $response->assertSee('update-note');
+    expect(Note::where('title', 'Docker layer cache misses')->exists())->toBeTrue();
+});
+
+it('adds no dup nudge when nothing similar exists', function () {
+    $user = User::factory()->create();
+    Note::factory()->create(['title' => 'Postgres like-vs-ilike gotcha', 'body' => 'Unrelated body.']);
+
+    $response = DevnotesServer::actingAs(OAuthUser::findOrFail($user->id))->tool(AddNote::class, [
+        'title' => 'Flux modal focus loss',
+        'body' => 'Body.',
+    ]);
+
+    $response->assertOk();
+    $response->assertDontSee('similar_notes');
+    $response->assertDontSee('hint');
+});
+
+it('never suggests out-of-team notes in the dup nudge', function () {
+    // Cross-team near-duplicates are legitimate - the nudge is team-scoped only.
+    $developers = Team::factory()->create(['name' => 'developers']);
+    $sysadmins = Team::factory()->create(['name' => 'sysadmins']);
+    $agentUser = User::factory()->create();
+    $agentUser->teams()->attach($developers);
+    $sysadminNote = Note::factory()->create(['title' => 'Docker layer cache misses on multi-stage builds']);
+    $sysadminNote->teams()->attach($sysadmins);
+
+    $response = DevnotesServer::actingAs(OAuthUser::findOrFail($agentUser->id))->tool(AddNote::class, [
+        'title' => 'Docker layer cache misses',
+        'body' => 'Body.',
+    ]);
+
+    $response->assertOk();
+    $response->assertDontSee('similar_notes');
+    $response->assertDontSee($sysadminNote->code);
+});
+
 it('creates a note owned by the calling user even when the arguments spoof a user_id', function () {
     $otherUser = User::factory()->create();
     $agentUser = User::factory()->create();
@@ -226,6 +279,84 @@ it('creates a note owned by the calling user even when the arguments spoof a use
     expect($note->body)->toBe('The weird thing, the cause, and the fix.');
     $response->assertSee('"code":"'.$note->code.'"');
     $response->assertSee('Livewire modal gotcha');
+});
+
+it('lets update-note change anyone\'s note without stealing authorship', function () {
+    // Wiki-style authorisation: any user may edit any note.
+    $author = User::factory()->create();
+    $agentUser = User::factory()->create();
+    $note = Note::factory()->create(['code' => 'abq4x', 'title' => 'A gotcha', 'body' => 'Original body.', 'user_id' => $author->id]);
+
+    $response = DevnotesServer::actingAs(OAuthUser::findOrFail($agentUser->id))->tool(UpdateNote::class, [
+        'code' => 'abq4x',
+        'body' => 'The finding evolved.',
+    ]);
+
+    $response->assertOk();
+    $response->assertName('update-note');
+    $note->refresh();
+    expect($note->body)->toBe('The finding evolved.');
+    expect($note->title)->toBe('A gotcha');
+    expect($note->user->is($author))->toBeTrue();
+});
+
+it('rejects invalid update-note input and changes nothing', function () {
+    $user = User::factory()->create();
+    $note = Note::factory()->create(['code' => 'abq4x', 'title' => 'A gotcha', 'body' => 'Original body.']);
+
+    $neitherGiven = DevnotesServer::actingAs(OAuthUser::findOrFail($user->id))->tool(UpdateNote::class, [
+        'code' => 'abq4x',
+    ]);
+    $neitherGiven->assertHasErrors(['title', 'body']);
+
+    $overlongTitle = DevnotesServer::actingAs(OAuthUser::findOrFail($user->id))->tool(UpdateNote::class, [
+        'code' => 'abq4x',
+        'title' => str_repeat('x', 256),
+    ]);
+    $overlongTitle->assertHasErrors(['title']);
+
+    $note->refresh();
+    expect($note->title)->toBe('A gotcha');
+    expect($note->body)->toBe('Original body.');
+});
+
+it('errors update-note on unknown or trashed codes and changes nothing', function () {
+    $user = User::factory()->create();
+    $note = Note::factory()->create(['code' => 'abq4x', 'body' => 'Original body.']);
+    $trashedNote = Note::factory()->create(['code' => 'zde77', 'body' => 'Trashed body.']);
+    $trashedNote->delete();
+
+    $unknownCode = DevnotesServer::actingAs(OAuthUser::findOrFail($user->id))->tool(UpdateNote::class, [
+        'code' => '#zzzzz',
+        'body' => 'Should go nowhere.',
+    ]);
+
+    $unknownCode->assertHasErrors(['No note found with code #zzzzz']);
+    $unknownCode->assertSee('search-notes');
+    expect($note->refresh()->body)->toBe('Original body.');
+
+    // Deleted means removed from editing too - update-note refuses trashed
+    // notes just as the API's PATCH does.
+    $trashedCode = DevnotesServer::actingAs(OAuthUser::findOrFail($user->id))->tool(UpdateNote::class, [
+        'code' => 'zde77',
+        'body' => 'Should go nowhere.',
+    ]);
+
+    $trashedCode->assertHasErrors(['No note found with code zde77']);
+    expect(Note::withTrashed()->find($trashedNote->id)->body)->toBe('Trashed body.');
+});
+
+it('moves updated_at on update-note so the note resurfaces in the digest', function () {
+    $user = User::factory()->create();
+    $note = Note::factory()->create(['code' => 'abq4x', 'updated_at' => now()->subDay()]);
+    $originalTimestamp = $note->updated_at;
+
+    DevnotesServer::actingAs(OAuthUser::findOrFail($user->id))->tool(UpdateNote::class, [
+        'code' => 'abq4x',
+        'body' => 'The finding evolved.',
+    ]);
+
+    expect($note->refresh()->updated_at->greaterThan($originalTimestamp))->toBeTrue();
 });
 
 it('never exposes the internal note id through the tools', function () {
@@ -254,14 +385,86 @@ it('treats an uppercase code as unknown in get-note, matching the renderer', fun
     $response->assertHasErrors(['No note found with code #ABQ4X']);
 });
 
-it('gives the graceful error when following a code to a soft-deleted note', function () {
+it('bumps read tracking when get-note fetches a note', function () {
     $user = User::factory()->create();
-    $binnedNote = Note::factory()->create(['code' => 'zde77']);
+    $note = Note::factory()->create(['code' => 'abq4x']);
+
+    DevnotesServer::actingAs(OAuthUser::findOrFail($user->id))->tool(GetNote::class, [
+        'code' => 'abq4x',
+    ]);
+
+    $note->refresh();
+    expect($note->read_count)->toBe(1);
+    expect($note->last_read_at)->not->toBeNull();
+
+    // A second read increments - proves it is a running count, not a set-to-1.
+    DevnotesServer::actingAs(OAuthUser::findOrFail($user->id))->tool(GetNote::class, [
+        'code' => 'abq4x',
+    ]);
+
+    expect($note->refresh()->read_count)->toBe(2);
+});
+
+it('does not bump read tracking when a search returns the note', function () {
+    $user = User::factory()->create();
+    $note = Note::factory()->create(['title' => 'Postgres like-vs-ilike gotcha']);
+
+    DevnotesServer::actingAs(OAuthUser::findOrFail($user->id))->tool(SearchNotes::class, [
+        'query' => 'postgres',
+    ])->assertSee($note->code);
+
+    $note->refresh();
+    expect($note->read_count)->toBe(0);
+    expect($note->last_read_at)->toBeNull();
+});
+
+it('leaves updated_at untouched when a read bumps the heuristics', function () {
+    // updated_at drives the session-start digest - a read must never move it.
+    $user = User::factory()->create();
+    $note = Note::factory()->create(['code' => 'abq4x', 'updated_at' => now()->subDay()]);
+    $originalTimestamp = $note->updated_at;
+
+    DevnotesServer::actingAs(OAuthUser::findOrFail($user->id))->tool(GetNote::class, [
+        'code' => 'abq4x',
+    ]);
+
+    expect($note->refresh()->updated_at)->toEqual($originalTimestamp);
+});
+
+it('keeps trashed notes out of search-notes results', function () {
+    $user = User::factory()->create();
+    $liveNote = Note::factory()->create(['title' => 'Postgres live gotcha']);
+    $trashedNote = Note::factory()->create(['title' => 'Postgres binned gotcha']);
+    $trashedNote->delete();
+
+    $response = DevnotesServer::actingAs(OAuthUser::findOrFail($user->id))->tool(SearchNotes::class, [
+        'query' => 'postgres',
+        'broader' => true,
+    ]);
+
+    $response->assertOk();
+    $response->assertSee($liveNote->code);
+    $response->assertDontSee($trashedNote->code);
+});
+
+it('returns a soft-deleted note from get-note with deleted_at flagged', function () {
+    $user = User::factory()->create();
+    $binnedNote = Note::factory()->create(['code' => 'zde77', 'title' => 'A binned gotcha']);
     $binnedNote->delete();
+    Note::factory()->create(['code' => 'abq4x']);
 
     $response = DevnotesServer::actingAs(OAuthUser::findOrFail($user->id))->tool(GetNote::class, [
         'code' => '#zde77',
     ]);
 
-    $response->assertHasErrors(['No note found with code #zde77']);
+    $response->assertOk();
+    $response->assertSee('A binned gotcha');
+    $response->assertSee('deleted_at');
+
+    $liveResponse = DevnotesServer::actingAs(OAuthUser::findOrFail($user->id))->tool(GetNote::class, [
+        'code' => 'abq4x',
+    ]);
+
+    $liveResponse->assertOk();
+    $liveResponse->assertDontSee('deleted_at');
 });

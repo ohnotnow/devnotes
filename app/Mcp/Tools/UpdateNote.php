@@ -5,13 +5,14 @@ namespace App\Mcp\Tools;
 use App\Models\Note;
 use Illuminate\Contracts\JsonSchema\JsonSchema;
 use Illuminate\JsonSchema\Types\Type;
+use Illuminate\Support\Arr;
 use Laravel\Mcp\Request;
 use Laravel\Mcp\Response;
 use Laravel\Mcp\Server\Attributes\Description;
 use Laravel\Mcp\Server\Tool;
 
-#[Description('Fetch one devnote in full, including its raw markdown body. Accepts a note code as returned by search-notes or add-note, in either bare (abq4x) or hash-prefixed (#abq4x) form.')]
-class GetNote extends Tool
+#[Description('Update an existing devnote\'s title and/or body. Reach for this when a finding evolves mid-session (the fix turned out to be different, the cause got clearer), or to merge a near-duplicate that add-note flagged, instead of leaving two notes covering the same ground. Accepts the note code in either bare (abq4x) or hash-prefixed (#abq4x) form.')]
+class UpdateNote extends Tool
 {
     /**
      * Handle the tool request.
@@ -20,30 +21,22 @@ class GetNote extends Tool
     {
         $validated = $request->validate([
             'code' => ['required', 'string'],
+            'title' => ['required_without:body', 'string', 'max:255'],
+            'body' => ['required_without:title', 'string'],
         ]);
 
-        $note = Note::withTrashed()->where('code', ltrim($validated['code'], '#'))->first();
+        $note = Note::where('code', ltrim($validated['code'], '#'))->first();
 
         if (! $note) {
             return Response::error("No note found with code {$validated['code']}. Use search-notes to find the right code.");
         }
 
-        $note->incrementReadCount();
+        $note->update(Arr::only($validated, ['title', 'body']));
 
-        $payload = [
+        return Response::json([
             'code' => $note->code,
             'title' => $note->title,
-            'body' => $note->body,
-            'author' => $note->user->full_name,
-            'created_at' => $note->created_at,
-            'updated_at' => $note->updated_at,
-        ];
-
-        if ($note->trashed()) {
-            $payload['deleted_at'] = $note->deleted_at;
-        }
-
-        return Response::json($payload);
+        ]);
     }
 
     /**
@@ -57,6 +50,10 @@ class GetNote extends Tool
             'code' => $schema->string()
                 ->description('The note code, with or without the leading #.')
                 ->required(),
+            'title' => $schema->string()
+                ->description('A new title for the note. Optional, but at least one of title or body is required.'),
+            'body' => $schema->string()
+                ->description('The full replacement body as markdown - not a diff or an addition.'),
         ];
     }
 }

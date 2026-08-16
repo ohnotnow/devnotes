@@ -1,6 +1,6 @@
 # Technical overview
 
-Last updated: 2026-08-15
+Last updated: 2026-08-16
 
 ## What this is
 
@@ -18,9 +18,9 @@ A shared pot of dev-team gotchas kept as tiny markdown notes, served three ways 
 ## Directory structure
 
 ```
-app/Livewire/           NotesIndex, NoteShow, NoteForm, ApiTokens, Admin/Users + Teams + ImportNotes
+app/Livewire/           NotesIndex, NoteShow, NoteForm, TidyNotes, ApiTokens, Admin/Users + Teams + ImportNotes
 app/Mcp/Servers/        DevnotesServer (instructions + tool registration)
-app/Mcp/Tools/          AddNote, SearchNotes, GetNote
+app/Mcp/Tools/          AddNote, SearchNotes, GetNote, UpdateNote
 app/Http/Controllers/   Api/V1/NoteController + ExportController, Admin/ExportController, Auth/SSOController
 app/Jobs/               ImportNotes (export/import section)
 app/Console/Commands/   ImportNotesCommand (devnotes:import)
@@ -39,6 +39,16 @@ OAuthUser = the same users table through a different lens (Passport only)
 ```
 
 Models use PHP attribute style (`#[Fillable]`), not `$fillable` arrays. Every note mints two identities at creation (see the export/import section): a five-char `code` (`abq4x`, the only reference humans see) and a `ulid` (machine identity, never displayed); the integer id is internal plumbing. `Note::rendered_body` converts markdown via CommonMark with `html_input => escape`, and a mention extension turns `#abq4x` into a link to that note (lowercase-only, exact length - the pattern carries a `(?-i:` group because commonmark's inline parser matches case-insensitively by default). Notes are wiki-style: any authenticated user can edit or delete any note. Users are the gate; there are no per-note permissions.
+
+### Read tracking
+
+Notes carry `read_count` and `last_read_at`, bumped only by deliberate full reads: MCP `get-note`, the web note page (`NoteShow::mount()`, not `render()` - a Livewire round-trip must not count), and API `show`. Searches, listings, the digest, and the tidy screen's preview flyout never bump. The single bump path is `Note::incrementReadCount()`, guarded twice: `withoutTimestamps` because `updated_at` drives the session-start digest and a read must never resurface a note there, and the quiet increment because Note is Scout-searchable and a plain increment would queue a re-index per read. The counter is deliberately dumb - no per-user tracking, no de-duplication; it is a rough team-wide signal that informs the tidy screen and never acts (ADR devnotes-Lp8cB). The fields stay out of `NoteResource` and `ExportNoteResource`: heuristics are install-local, and the export golden master must stay byte-identical.
+
+The tidy screen (`/tidy`, TidyNotes) lists the signed-in user's notes least-loved first (`orderBy('read_count')->orderBy('last_read_at')` - the tie-break never lands on NULL because `last_read_at` is only NULL at `read_count` 0, so cross-database NULL-ordering differences never matter). Admins get an ApiTokens-style `showAll` toggle; regular users forcing the URL parameter still see only their own notes.
+
+### Soft deletes: removed from discovery, not citation
+
+Deleting a note removes it from discovery (search, digest, listings, the tidy screen - all via the SoftDeletes global scope) but not from citation. The show bindings alone opt in via `withTrashed`: the web route, the API apiResource (`->withTrashed(['show'])` - update and destroy still 404 on trashed notes, as does `update-note`), and `GetNote`. All three surfaces agree on the fact: the web page shows a deletion callout (and swaps Edit/Delete for a Restore button - any user may restore, wiki rules), while the API's `NoteResource` and MCP `get-note` carry `deleted_at` (the API emits it always, null when live; the MCP payload only includes the key when trashed). `#code` mentions of a trashed note render amber via a per-mention `onlyTrashed` lookup in the mention generator, still linking to the note page.
 
 ### Teams scope search recall, never visibility
 
@@ -92,7 +102,7 @@ Passport's guard constructs its crypto keys even to reject a tokenless request, 
 
 ## MCP server
 
-`DevnotesServer` builds its instructions per authenticated user at request time (`createContext()` override - the `#[Instructions]` attribute would beat the `$instructions` property, so there is no attribute): a short habit block (search before debugging, capture gotchas, write for a stranger, retry scoped searches with broader) followed by a digest of the 10 most recently updated notes the caller would see in a default-scoped search, one `#code title (teams, age)` line each, plus the pot count. The digest is the session-start surfacing mechanism: every MCP surface gets recent team knowledge pushed into context at connection time, no hooks or CLI needed (ADR devnotes-7qsQV). and three tools with token-frugal returns: `search-notes` gives code/title/200-char snippet (max 20 hits) scoped to the caller's teams by default - scoped responses carry a retry-with-`broader: true` hint, and broader responses label out-of-team rows `from_outside_your_teams` - `get-note` gives the full markdown and accepts `abq4x` or `#abq4x`, `add-note` validates with the same rules as the API, tags the note with team names or the author's defaults, and returns `{code, title}`. Unknown codes return a tool error pointing at `search-notes`, not an exception. Tools resolve the caller's `App\Models\User` via `User::findOrFail($request->user()->id)` - same table, same ids as OAuthUser.
+`DevnotesServer` builds its instructions per authenticated user at request time (`createContext()` override - the `#[Instructions]` attribute would beat the `$instructions` property, so there is no attribute): a short habit block (search before debugging, capture gotchas, write for a stranger, retry scoped searches with broader) followed by a digest of the 10 most recently updated notes the caller would see in a default-scoped search, one `#code title (teams, age)` line each, plus the pot count. The digest is the session-start surfacing mechanism: every MCP surface gets recent team knowledge pushed into context at connection time, no hooks or CLI needed (ADR devnotes-7qsQV). and four tools with token-frugal returns: `search-notes` gives code/title/200-char snippet (max 20 hits) scoped to the caller's teams by default - scoped responses carry a retry-with-`broader: true` hint, and broader responses label out-of-team rows `from_outside_your_teams` - `get-note` gives the full markdown and accepts `abq4x` or `#abq4x` (a trashed note comes back with a `deleted_at` key; live notes carry no such key), `add-note` validates with the same rules as the API, tags the note with team names or the author's defaults, and returns `{code, title}`, and `update-note` changes title and/or body by code (at least one required; live notes only; the `updated_at` bump deliberately resurfaces the note in the digest). After creating, `add-note` searches the caller's team scope with the new note's title and, when similar notes exist, appends `similar_notes` (top 3, `{code, title}`) plus a `hint` naming `update-note` - nothing when there are no matches, in the same conditional style as the search hint; creation itself is never blocked. Unknown codes return a tool error pointing at `search-notes`, not an exception. Tools resolve the caller's `App\Models\User` via `User::findOrFail($request->user()->id)` - same table, same ids as OAuthUser.
 
 Operational quirks learned the hard way: laravel/mcp 0.9 speaks protocol revisions up to 2025-11-25 (clients negotiate down), and MCP clients cache both the tool list and the instructions text at connection time. After deploying new or changed tools, clients need a manual reconnect; changed instructions may need the connector removed and re-added.
 
@@ -101,7 +111,8 @@ Operational quirks learned the hard way: laravel/mcp 0.9 speaks protocol revisio
 | Route | Handler | Access |
 |-------|---------|--------|
 | `/` | NotesIndex (Livewire) | auth |
-| `/notes/{note:code}` | NoteShow | auth |
+| `/notes/{note:code}` | NoteShow | auth (withTrashed) |
+| `/tidy` | TidyNotes | auth |
 | `/settings/api-tokens` | ApiTokens | auth |
 | `/settings/teams` | TeamSettings | auth |
 | `/admin/users` | Admin/Users | `can:admin` |

@@ -20,6 +20,21 @@ it('filters notes by search term across title and body', function () {
         ->assertDontSee('Livewire modal focus gotcha');
 });
 
+it('keeps trashed notes out of the index and search results', function () {
+    $user = User::factory()->create();
+    Note::factory()->create(['title' => 'A live postgres gotcha']);
+    $trashedNote = Note::factory()->create(['title' => 'A binned postgres gotcha']);
+    $trashedNote->delete();
+
+    Livewire::actingAs($user)
+        ->test(NotesIndex::class)
+        ->assertSee('A live postgres gotcha')
+        ->assertDontSee('A binned postgres gotcha')
+        ->set('search', 'postgres')
+        ->assertSee('A live postgres gotcha')
+        ->assertDontSee('A binned postgres gotcha');
+});
+
 it('scopes search to the viewer\'s teams with a toggle to search all teams', function () {
     $developers = Team::factory()->create(['name' => 'developers']);
     $sysadmins = Team::factory()->create(['name' => 'sysadmins']);

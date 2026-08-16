@@ -65,6 +65,17 @@ it('shows a single note as raw markdown', function () {
     expect($response->json('data.code'))->toBe($note->code);
 });
 
+it('bumps read tracking when a note is fetched via the api', function () {
+    Sanctum::actingAs(User::factory()->create());
+    $note = Note::factory()->create();
+
+    $this->getJson("/api/v1/notes/{$note->code}")->assertSuccessful();
+
+    $note->refresh();
+    expect($note->read_count)->toBe(1);
+    expect($note->last_read_at)->not->toBeNull();
+});
+
 it('lists a note\'s team names in the resource', function () {
     Sanctum::actingAs(User::factory()->create());
     $taggedNote = Note::factory()->create();
@@ -154,6 +165,19 @@ it('syncs teams on update only when team_ids is sent', function () {
     expect($note->teams()->count())->toBe(0);
 });
 
+it('shows a trashed note via the api with deleted_at set', function () {
+    Sanctum::actingAs(User::factory()->create());
+    $trashedNote = Note::factory()->create();
+    $trashedNote->delete();
+    $liveNote = Note::factory()->create();
+
+    $trashedResponse = $this->getJson("/api/v1/notes/{$trashedNote->code}");
+    $trashedResponse->assertSuccessful();
+    expect($trashedResponse->json('data.deleted_at'))->not->toBeNull();
+
+    expect($this->getJson("/api/v1/notes/{$liveNote->code}")->json('data.deleted_at'))->toBeNull();
+});
+
 it('soft-deletes exactly the targeted note', function () {
     Sanctum::actingAs(User::factory()->create());
     $noteToDelete = Note::factory()->create();
@@ -166,7 +190,10 @@ it('soft-deletes exactly the targeted note', function () {
     expect(Note::withTrashed()->find($noteToDelete->id))->not->toBeNull();
     expect(Note::find($noteToKeep->id))->not->toBeNull();
 
-    $this->getJson("/api/v1/notes/{$noteToDelete->code}")->assertNotFound();
+    // Deletion removes a note from discovery, not citation: show keeps working
+    // (with deleted_at set), while update and destroy refuse trashed notes.
+    $this->getJson("/api/v1/notes/{$noteToDelete->code}")->assertSuccessful();
+    $this->putJson("/api/v1/notes/{$noteToDelete->code}", ['title' => 'Nope', 'body' => 'Nope.'])->assertNotFound();
     $this->deleteJson("/api/v1/notes/{$noteToDelete->code}")->assertNotFound();
 
     $list = $this->getJson('/api/v1/notes');
