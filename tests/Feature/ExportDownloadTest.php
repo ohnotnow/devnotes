@@ -1,7 +1,9 @@
 <?php
 
+use App\Livewire\NotesIndex;
 use App\Models\Note;
 use App\Models\User;
+use Livewire\Livewire;
 
 it('lets an admin download the export as an attached json file', function () {
     $admin = User::factory()->admin()->create();
@@ -38,15 +40,15 @@ it('refuses the export download to guests and regular users', function () {
     $response->assertDontSee('A gotcha worth keeping');
 });
 
-it('shows the export link in the sidebar to admins only', function () {
+it('shows the export button on the notes index to admins only', function () {
     $admin = User::factory()->admin()->create();
     $regularUser = User::factory()->create();
 
-    $adminPage = $this->actingAs($admin)->get('/');
-    $adminPage->assertSuccessful();
-    $adminPage->assertSee(route('admin.export'));
+    Livewire::actingAs($admin)
+        ->test(NotesIndex::class)
+        ->assertSee(route('admin.export'));
 
-    $regularUserPage = $this->actingAs($regularUser)->get('/');
-    $regularUserPage->assertSuccessful();
-    $regularUserPage->assertDontSee(route('admin.export'));
+    Livewire::actingAs($regularUser)
+        ->test(NotesIndex::class)
+        ->assertDontSee(route('admin.export'));
 });

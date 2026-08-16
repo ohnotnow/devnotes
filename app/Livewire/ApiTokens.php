@@ -3,6 +3,8 @@
 namespace App\Livewire;
 
 use Flux\Flux;
+use Laravel\Sanctum\PersonalAccessToken;
+use Livewire\Attributes\Url;
 use Livewire\Component;
 
 class ApiTokens extends Component
@@ -10,6 +12,9 @@ class ApiTokens extends Component
     public string $tokenName = '';
 
     public string $newPlainTextToken = '';
+
+    #[Url]
+    public $showAll = false;
 
     public function create(): void
     {
@@ -25,15 +30,29 @@ class ApiTokens extends Component
 
     public function revoke(int $tokenId): void
     {
-        auth()->user()->tokens()->where('id', $tokenId)->delete();
+        $tokens = auth()->user()->can('admin')
+            ? PersonalAccessToken::query()
+            : auth()->user()->tokens();
+
+        $tokens->where('id', $tokenId)->delete();
 
         Flux::toast('Token revoked');
     }
 
+    private function isShowingAll(): bool
+    {
+        return auth()->user()->can('admin') && filter_var($this->showAll, FILTER_VALIDATE_BOOL);
+    }
+
     public function render()
     {
+        $showingAll = $this->isShowingAll();
+
         return view('livewire.api-tokens', [
-            'tokens' => auth()->user()->tokens()->latest()->get(),
+            'showingAll' => $showingAll,
+            'tokens' => $showingAll
+                ? PersonalAccessToken::with('tokenable')->latest()->get()
+                : auth()->user()->tokens()->latest()->get(),
         ]);
     }
 }

@@ -48,6 +48,47 @@ it('only ever shows and touches your own tokens', function () {
     expect($otherUser->tokens()->count())->toBe(1);
 });
 
+it('shows every token in the system to an admin who turns on show-all', function () {
+    $admin = User::factory()->admin()->create();
+    $otherUser = User::factory()->create();
+    $otherUser->createToken('forgotten laptop token');
+
+    Livewire::actingAs($admin)
+        ->test(ApiTokens::class)
+        ->assertDontSee('forgotten laptop token')
+        ->set('showAll', true)
+        ->assertSee('forgotten laptop token')
+        ->assertSee($otherUser->full_name);
+});
+
+it('lets an admin revoke another users token', function () {
+    $admin = User::factory()->admin()->create();
+    $otherUser = User::factory()->create();
+    $tokenToRevoke = $otherUser->createToken('forgotten laptop token')->accessToken;
+    $tokenToKeep = $otherUser->createToken('current laptop token')->accessToken;
+
+    Livewire::actingAs($admin)
+        ->test(ApiTokens::class)
+        ->set('showAll', true)
+        ->call('revoke', $tokenToRevoke->id);
+
+    expect($otherUser->tokens()->pluck('id')->all())->toBe([$tokenToKeep->id]);
+});
+
+it('never shows other peoples tokens or the show-all switch to a regular user', function () {
+    $regularUser = User::factory()->create();
+    $otherUser = User::factory()->create();
+    $otherUser->createToken('someone elses token');
+
+    Livewire::actingAs($regularUser)
+        ->test(ApiTokens::class)
+        ->assertDontSee('Show all tokens')
+        ->set('showAll', true)
+        ->assertDontSee('someone elses token');
+
+    expect($otherUser->tokens()->count())->toBe(1);
+});
+
 it('links to the token screen from the sidebar', function () {
     $user = User::factory()->create();
 

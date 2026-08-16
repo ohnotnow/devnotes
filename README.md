@@ -77,7 +77,7 @@ Still one pot, but with tuned recall for mixed departments: notes and people can
 
 ## Backups, export and import
 
-Admins get an Export link in the sidebar that downloads the whole pot - every note, including soft-deleted ones - as a single JSON file. The same payload is served at `GET /api/v1/export` to tokens belonging to admin users, which makes a scheduled off-site backup a one-line cron job:
+Admins get an Export button on the notes index that downloads the whole pot - every note, including soft-deleted ones - as a single JSON file. The same payload is served at `GET /api/v1/export` to tokens belonging to admin users, which makes a scheduled off-site backup a one-line cron job:
 
 ```sh
 curl -H "Authorization: Bearer $TOKEN" https://your-devnotes-host/api/v1/export > devnotes-backup.json

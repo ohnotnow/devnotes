@@ -28,9 +28,19 @@
         </flux:callout>
     @endif
 
+    @can('admin')
+        <flux:field variant="inline" class="mt-6">
+            <flux:switch wire:model.live="showAll" aria-label="Show all tokens" />
+            <flux:label>Show all tokens</flux:label>
+        </flux:field>
+    @endcan
+
     <flux:table class="mt-6">
         <flux:table.columns>
             <flux:table.column>Name</flux:table.column>
+            @if ($showingAll)
+                <flux:table.column>Owner</flux:table.column>
+            @endif
             <flux:table.column>Created</flux:table.column>
             <flux:table.column>Last used</flux:table.column>
             <flux:table.column></flux:table.column>
@@ -39,12 +49,15 @@
         <flux:table.rows>
             @if ($tokens->isEmpty())
                 <flux:table.row>
-                    <flux:table.cell colspan="4">No tokens yet - create one to use the CLI or MCP clients.</flux:table.cell>
+                    <flux:table.cell colspan="{{ $showingAll ? 5 : 4 }}">No tokens yet - create one to use the CLI or MCP clients.</flux:table.cell>
                 </flux:table.row>
             @endif
             @foreach ($tokens as $token)
                 <flux:table.row wire:key="token-{{ $token->id }}">
                     <flux:table.cell variant="strong">{{ $token->name }}</flux:table.cell>
+                    @if ($showingAll)
+                        <flux:table.cell>{{ $token->tokenable->full_name }}</flux:table.cell>
+                    @endif
                     <flux:table.cell>{{ $token->created_at->diffForHumans() }}</flux:table.cell>
                     <flux:table.cell>{{ $token->last_used_at?->diffForHumans() ?? 'never' }}</flux:table.cell>
                     <flux:table.cell align="end">

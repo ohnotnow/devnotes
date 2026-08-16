@@ -5,6 +5,9 @@
             <flux:text class="mt-2">The team's shared pot of gotchas, fixes and lessons learned.</flux:text>
         </div>
         <flux:spacer />
+        @can('admin')
+            <flux:button icon="arrow-down-tray" :href="route('admin.export')">Export</flux:button>
+        @endcan
         <flux:button variant="primary" icon="plus" wire:click="$dispatch('note-editor:create')">New note</flux:button>
     </div>
 
