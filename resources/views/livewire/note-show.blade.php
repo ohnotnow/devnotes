@@ -15,11 +15,11 @@
         >#{{ $note->code }}</flux:badge>
         <flux:spacer />
         @if ($note->trashed())
-            <flux:button size="sm" icon="arrow-uturn-left" wire:click="restore">Restore</flux:button>
+            <flux:button title="Restore" aria-label="Restore note" size="sm" icon="arrow-uturn-left" wire:click="restore"></flux:button>
         @else
-            <flux:button size="sm" icon="pencil-square" wire:click="$dispatch('note-editor:edit', { id: {{ $note->id }} })">Edit</flux:button>
+            <flux:button title="Edit" aria-label="Edit" size="sm" icon="pencil-square" wire:click="$dispatch('note-editor:edit', { id: {{ $note->id }} })"></flux:button>
             <flux:modal.trigger name="confirm-note-delete">
-                <flux:button size="sm" variant="danger" icon="trash">Delete</flux:button>
+                <flux:button title="Delete" aria-label="Delete" size="sm" variant="danger" icon="trash"></flux:button>
             </flux:modal.trigger>
         @endif
     </div>

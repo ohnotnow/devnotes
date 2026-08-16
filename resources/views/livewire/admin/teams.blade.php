@@ -6,7 +6,7 @@
         </div>
         <flux:spacer />
         <flux:modal.trigger name="team-editor">
-            <flux:button variant="primary" icon="plus" wire:click="openCreate">Add team</flux:button>
+            <flux:button icon="plus" title="Add new team" aria-label="Add new team" wire:click="openCreate"></flux:button>
         </flux:modal.trigger>
     </div>
 
@@ -25,8 +25,8 @@
                     <flux:table.cell>{{ $team->users_count }}</flux:table.cell>
                     <flux:table.cell>{{ $team->notes_count }}</flux:table.cell>
                     <flux:table.cell align="end">
-                        <flux:button size="sm" icon="pencil" wire:click="openEdit({{ $team->id }})" aria-label="Rename {{ $team->name }}">Rename</flux:button>
-                        <flux:button size="sm" variant="danger" icon="trash" wire:click="openDelete({{ $team->id }})" aria-label="Delete {{ $team->name }}">Delete</flux:button>
+                        <flux:button size="sm" icon="pencil" wire:click="openEdit({{ $team->id }})" aria-label="Rename {{ $team->name }}"></flux:button>
+                        <flux:button size="sm" variant="danger" icon="trash" wire:click="openDelete({{ $team->id }})" aria-label="Delete {{ $team->name }}"></flux:button>
                     </flux:table.cell>
                 </flux:table.row>
             @endforeach

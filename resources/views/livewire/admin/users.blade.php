@@ -9,7 +9,7 @@
             @endif
         </div>
         <flux:spacer />
-        <flux:button variant="primary" icon="plus" wire:click="openAdd">Add person</flux:button>
+        <flux:button icon="plus" wire:click="openAdd" title="Add user" aria-label="Add user"></flux:button>
     </div>
 
     @if ($newTempPassword !== '')
@@ -75,7 +75,8 @@
                             icon="pencil"
                             wire:click="openEdit({{ $user->id }})"
                             aria-label="Edit {{ $user->full_name !== '' ? $user->full_name : $user->email }}"
-                        >Edit</flux:button>
+                            title="Edit {{ $user->full_name }}"
+                        ></flux:button>
                         @unless ($user->is(auth()->user()))
                             <flux:button
                                 size="sm"
@@ -83,7 +84,8 @@
                                 icon="trash"
                                 wire:click="openDelete({{ $user->id }})"
                                 aria-label="Delete {{ $user->full_name !== '' ? $user->full_name : $user->email }}"
-                            >Delete</flux:button>
+                                title="Delete {{ $user->full_name }}"
+                            ></flux:button>
                         @endunless
                     </flux:table.cell>
                 </flux:table.row>

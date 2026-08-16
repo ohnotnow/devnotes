@@ -63,7 +63,7 @@
                             wire:click="delete({{ $note->id }})"
                             wire:confirm="Delete note #{{ $note->code }}? It stays in the database and remains viewable from links in other notes - but it disappears from search, the notes list, and agents' digests. A developer can un-delete it later."
                             aria-label="Delete note #{{ $note->code }}"
-                        >Delete</flux:button>
+                        ></flux:button>
                     </flux:table.cell>
                 </flux:table.row>
             @endforeach

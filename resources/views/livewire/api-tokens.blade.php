@@ -6,7 +6,7 @@
         </div>
         <flux:spacer />
         <flux:modal.trigger name="token-create">
-            <flux:button variant="primary" icon="plus">New token</flux:button>
+            <flux:button title="New token" aria-label="Create new token" icon="plus"></flux:button>
         </flux:modal.trigger>
     </div>
 
@@ -62,12 +62,14 @@
                     <flux:table.cell>{{ $token->last_used_at?->diffForHumans() ?? 'never' }}</flux:table.cell>
                     <flux:table.cell align="end">
                         <flux:button
+                            title="Revoke"
+                            aria-label="Revoke token {{ $token->name }}"
                             size="sm"
                             variant="danger"
                             icon="trash"
                             wire:click="revoke({{ $token->id }})"
                             wire:confirm="Revoke the token '{{ $token->name }}'? Anything using it stops working."
-                        >Revoke</flux:button>
+                        ></flux:button>
                     </flux:table.cell>
                 </flux:table.row>
             @endforeach

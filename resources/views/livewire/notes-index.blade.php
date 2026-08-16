@@ -6,9 +6,9 @@
         </div>
         <flux:spacer />
         @can('admin')
-            <flux:button icon="arrow-down-tray" :href="route('admin.export')">Export</flux:button>
+            <flux:button title="Export" aria-label="Export" icon="arrow-down-tray" :href="route('admin.export')"></flux:button>
         @endcan
-        <flux:button variant="primary" icon="plus" wire:click="$dispatch('note-editor:create')">New note</flux:button>
+        <flux:button title="Create new note" aria-label="Create new note" icon="plus" wire:click="$dispatch('note-editor:create')"></flux:button>
     </div>
 
     <div class="mt-6 flex items-center gap-6">
