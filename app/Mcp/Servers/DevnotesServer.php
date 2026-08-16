@@ -53,7 +53,9 @@ class DevnotesServer extends Server
         }
 
         $lines = $notes->map(function (Note $note): string {
-            $meta = $note->teams->pluck('name')->push($note->updated_at->diffForHumans())->implode(', ');
+            // Absolute date, not diffForHumans(): clients cache instructions at
+            // connect time, so a relative age would go stale and read as false.
+            $meta = $note->teams->pluck('name')->push($note->updated_at->toDateString())->implode(', ');
 
             return "- #{$note->code} {$note->title} ({$meta})";
         });

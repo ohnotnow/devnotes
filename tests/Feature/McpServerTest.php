@@ -166,7 +166,9 @@ it('embeds a recent-notes digest for the authenticated user in the handshake ins
     expect($instructions)->toContain('call search-notes BEFORE debugging');
     expect($instructions)->toContain('#'.$teamNote->code);
     expect($instructions)->toContain('Docker layer cache misses');
-    expect($instructions)->toContain('developers');
+    // Absolute date, not "18 hours ago": clients cache instructions at connect
+    // time, so relative ages go quietly stale for the life of the connection.
+    expect($instructions)->toContain('(developers, '.$teamNote->updated_at->toDateString().')');
     expect($instructions)->toContain('The pot has 1 note in total');
 });
 
