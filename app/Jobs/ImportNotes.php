@@ -2,6 +2,7 @@
 
 namespace App\Jobs;
 
+use App\Models\Activity;
 use App\Models\Note;
 use App\Models\Team;
 use App\Models\User;
@@ -45,9 +46,11 @@ class ImportNotes implements ShouldQueue
     public function handle(): array
     {
         try {
-            foreach ($this->exportedNotes() as $exportedNote) {
-                $this->import($exportedNote);
-            }
+            Activity::withoutLogging(function (): void {
+                foreach ($this->exportedNotes() as $exportedNote) {
+                    $this->import($exportedNote);
+                }
+            });
 
             return $this->report;
         } finally {
@@ -78,12 +81,14 @@ class ImportNotes implements ShouldQueue
 
         if ($existingNote && in_array($exportedNote['ulid'], $this->overwriteUlids)) {
             $this->overwrite($existingNote, $exportedNote);
+            $this->importActivities($existingNote, $exportedNote);
             $this->report['overwritten'][] = $existingNote->code;
 
             return;
         }
 
         if ($existingNote) {
+            $this->importActivities($existingNote, $exportedNote);
             $this->report['skipped'][] = $exportedNote['code'];
 
             return;
@@ -92,7 +97,33 @@ class ImportNotes implements ShouldQueue
         $owner = $this->resolveOwner($exportedNote['author']);
         $note = $this->createNote($exportedNote, $owner);
         $note->teams()->attach($this->resolveTeamIds($exportedNote['teams']));
+        $this->importActivities($note, $exportedNote);
         $this->report['imported']++;
+    }
+
+    /**
+     * Merge the file's activity history into the local note. The ulid is an
+     * activity's identity across installs, so rows we already hold are left
+     * alone - a skipped note still receives history it has never seen.
+     *
+     * @param  array<string, mixed>  $exportedNote
+     */
+    private function importActivities(Note $note, array $exportedNote): void
+    {
+        foreach ($exportedNote['activities'] ?? [] as $exportedActivity) {
+            if (Activity::where('ulid', $exportedActivity['ulid'])->exists()) {
+                continue;
+            }
+
+            Activity::create([
+                'ulid' => $exportedActivity['ulid'],
+                'user_id' => $exportedActivity['actor'] ? $this->resolveOwner($exportedActivity['actor'])->id : null,
+                'note_id' => $note->id,
+                'action' => $exportedActivity['action'],
+                'description' => $exportedActivity['description'],
+                'created_at' => $exportedActivity['created_at'],
+            ]);
+        }
     }
 
     /**
@@ -114,6 +145,8 @@ class ImportNotes implements ShouldQueue
                 'created_at' => $exportedNote['created_at'],
                 'updated_at' => $exportedNote['updated_at'],
                 'deleted_at' => $exportedNote['deleted_at'],
+                'read_count' => $exportedNote['read_count'] ?? 0,
+                'last_read_at' => $exportedNote['last_read_at'] ?? null,
             ])->save();
 
             $note->teams()->sync($this->resolveTeamIds($exportedNote['teams']));
@@ -174,6 +207,8 @@ class ImportNotes implements ShouldQueue
                 'created_at' => $exportedNote['created_at'],
                 'updated_at' => $exportedNote['updated_at'],
                 'deleted_at' => $exportedNote['deleted_at'],
+                'read_count' => $exportedNote['read_count'] ?? 0,
+                'last_read_at' => $exportedNote['last_read_at'] ?? null,
             ])->save();
 
             return $note;

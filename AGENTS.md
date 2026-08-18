@@ -296,7 +296,7 @@ You may also have the `test-debug` agent available.  Use it if you're stuck, but
 
 ### Running tests
 
-`php artisan test --parallel --tia` for the full suite.  Shows full output for failures but keeps passing tests quiet, which saves context window space.  `tia` is a new feature of pest version 5 that uses a call graph to only run tests for code that has changed (using the php `pcov` extension under the hood).
+`vendor/bin/pest --parallel --tia` for the full suite.  Shows full output for failures but keeps passing tests quiet, which saves context window space.  `tia` is a new feature of pest version 5 that uses a call graph to only run tests affected by code changes since the last run (using the php `pcov` extension under the hood), so whole-suite runs are super-fast.  Note it needs the `pest` binary directly - `php artisan test --tia` does not work.
 
 `--filter=TestName` when you're working on a specific test file.
 
@@ -389,7 +389,7 @@ This project has domain-specific skills available in `**/skills/**`. You MUST ac
 
 ## Searching Documentation (IMPORTANT)
 
-- Always use `search-docs` before making code changes. Do not skip this step. It returns version-specific docs based on installed packages automatically.
+- Use `search-docs` before changes that depend on Laravel ecosystem APIs, behavior, configuration, or version-specific syntax. Skip it for copy-only edits and other changes where package documentation is irrelevant. Reuse sufficient results already in context instead of searching again.
 - Pass a `packages` array to scope results when you know which packages are relevant.
 - Use multiple broad, topic-based queries: `['rate limiting', 'routing rate limiting', 'routing']`. Expect the most relevant results first.
 - Do not add package names to queries because package info is already shared. Use `test resource table`, not `filament 4 test resource table`.

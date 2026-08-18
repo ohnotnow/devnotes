@@ -2,6 +2,7 @@
 
 use App\Http\Controllers\Admin\ExportController;
 use App\Http\Middleware\RequirePasswordChange;
+use App\Livewire\Admin\ActivityLog;
 use App\Livewire\Admin\ImportNotes;
 use App\Livewire\Admin\Teams;
 use App\Livewire\Admin\Users;
@@ -26,4 +27,5 @@ Route::middleware(['auth', RequirePasswordChange::class])->group(function () {
     Route::get('/admin/teams', Teams::class)->name('admin.teams')->middleware('can:admin');
     Route::get('/admin/export', ExportController::class)->name('admin.export')->middleware('can:admin');
     Route::get('/admin/import', ImportNotes::class)->name('admin.import')->middleware('can:admin');
+    Route::get('/admin/activity', ActivityLog::class)->name('admin.activity')->middleware('can:admin');
 });

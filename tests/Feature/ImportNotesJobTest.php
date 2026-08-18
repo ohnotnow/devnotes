@@ -1,6 +1,8 @@
 <?php
 
+use App\Enums\ActivityAction;
 use App\Jobs\ImportNotes;
+use App\Models\Activity;
 use App\Models\Note;
 use App\Models\Team;
 use App\Models\User;
@@ -30,6 +32,56 @@ it('recreates exported notes with their ulids, codes, authors, teams, timestamps
     expect(User::count())->toBe(2);
     expect(Team::orderBy('name')->pluck('name')->all())->toBe(['developers', 'sysadmins']);
     expect($report)->toBe(['imported' => 3, 'skipped' => [], 'overwritten' => [], 'recoded' => [], 'users_created' => 2, 'teams_created' => 2]);
+});
+
+it('recreates read data and activity history from the export file', function () {
+    Storage::fake('local');
+    Storage::disk('local')->put('imports/export.json', file_get_contents(base_path('tests/fixtures/export-v1.json')));
+
+    (new ImportNotes('local', 'imports/export.json'))->handle();
+
+    $teamNote = Note::where('code', 'abq4x')->sole();
+    expect($teamNote->read_count)->toBe(3);
+    expect($teamNote->last_read_at->toJSON())->toBe('2026-08-15T09:00:00.000000Z');
+    expect($teamNote->activities)->toHaveCount(2);
+    $createdActivity = $teamNote->activities()->where('ulid', '01ARZ3NDEKTSV4RRFFQ69G5AA1')->sole();
+    expect($createdActivity->user->email)->toBe('author@example.com');
+    expect($createdActivity->action)->toBe(ActivityAction::Created);
+    expect($createdActivity->description)->toBe("created note #abq4x 'How to install the puppet client on Rocky Linux'");
+    expect($createdActivity->created_at->toJSON())->toBe('2026-08-15T10:00:00.000000Z');
+    expect(Activity::count())->toBe(2);
+});
+
+it('merges no duplicate activity history on a re-import, keyed on the activity ulid', function () {
+    Storage::fake('local');
+    $fixture = file_get_contents(base_path('tests/fixtures/export-v1.json'));
+    Storage::disk('local')->put('imports/first.json', $fixture);
+    (new ImportNotes('local', 'imports/first.json'))->handle();
+
+    Storage::disk('local')->put('imports/second.json', $fixture);
+    (new ImportNotes('local', 'imports/second.json'))->handle();
+
+    expect(Activity::count())->toBe(2);
+    expect(Note::where('code', 'abq4x')->sole()->activities)->toHaveCount(2);
+});
+
+it('imports an older export file that predates read data and activity history', function () {
+    Storage::fake('local');
+    $payload = json_decode(file_get_contents(base_path('tests/fixtures/export-v1.json')), true);
+    $payload['notes'] = array_map(function (array $note): array {
+        unset($note['read_count'], $note['last_read_at'], $note['activities']);
+
+        return $note;
+    }, $payload['notes']);
+    Storage::disk('local')->put('imports/old.json', json_encode($payload));
+
+    $report = (new ImportNotes('local', 'imports/old.json'))->handle();
+
+    expect($report['imported'])->toBe(3);
+    $teamNote = Note::where('code', 'abq4x')->sole();
+    expect($teamNote->read_count)->toBe(0);
+    expect($teamNote->last_read_at)->toBeNull();
+    expect(Activity::count())->toBe(0);
 });
 
 it('imports nothing on a re-import and reports every code as skipped', function () {

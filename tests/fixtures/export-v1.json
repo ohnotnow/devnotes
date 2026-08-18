@@ -16,7 +16,10 @@
             "teams": [],
             "created_at": "2026-08-15T10:00:00.000000Z",
             "updated_at": "2026-08-15T10:00:00.000000Z",
-            "deleted_at": null
+            "deleted_at": null,
+            "read_count": 0,
+            "last_read_at": null,
+            "activities": []
         },
         {
             "ulid": "01ARZ3NDEKTSV4RRFFQ69G5FA2",
@@ -36,7 +39,37 @@
             ],
             "created_at": "2026-08-15T10:00:00.000000Z",
             "updated_at": "2026-08-15T10:00:00.000000Z",
-            "deleted_at": null
+            "deleted_at": null,
+            "read_count": 3,
+            "last_read_at": "2026-08-15T09:00:00.000000Z",
+            "activities": [
+                {
+                    "ulid": "01ARZ3NDEKTSV4RRFFQ69G5AA1",
+                    "actor": {
+                        "email": "author@example.com",
+                        "forenames": "Test",
+                        "surname": "Author",
+                        "is_admin": false,
+                        "is_staff": true
+                    },
+                    "action": "created",
+                    "description": "created note #abq4x 'How to install the puppet client on Rocky Linux'",
+                    "created_at": "2026-08-15T10:00:00.000000Z"
+                },
+                {
+                    "ulid": "01ARZ3NDEKTSV4RRFFQ69G5AA2",
+                    "actor": {
+                        "email": "admin@example.com",
+                        "forenames": "Admin",
+                        "surname": "Author",
+                        "is_admin": true,
+                        "is_staff": true
+                    },
+                    "action": "read",
+                    "description": "read note #abq4x 'How to install the puppet client on Rocky Linux'",
+                    "created_at": "2026-08-15T10:00:00.000000Z"
+                }
+            ]
         },
         {
             "ulid": "01ARZ3NDEKTSV4RRFFQ69G5FA3",
@@ -53,7 +86,10 @@
             "teams": [],
             "created_at": "2026-08-15T10:00:00.000000Z",
             "updated_at": "2026-08-15T10:00:00.000000Z",
-            "deleted_at": "2026-08-15T10:00:00.000000Z"
+            "deleted_at": "2026-08-15T10:00:00.000000Z",
+            "read_count": 0,
+            "last_read_at": null,
+            "activities": []
         }
     ]
 }

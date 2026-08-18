@@ -2,6 +2,8 @@
 
 namespace App\Models;
 
+use App\Enums\ActivityAction;
+use App\Events\NoteActivityHappened;
 use App\Http\Resources\ExportNoteResource;
 use Database\Factories\NoteFactory;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
@@ -11,6 +13,7 @@ use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\SoftDeletes;
 use Illuminate\Support\HtmlString;
 use Illuminate\Support\Str;
@@ -63,6 +66,20 @@ class Note extends Model
                 $note->code = static::mintCode();
             }
         });
+
+        static::created(fn (Note $note) => $note->recordActivity(ActivityAction::Created));
+
+        static::updated(function (Note $note) {
+            if ($note->wasChanged('deleted_at')) {
+                return;
+            }
+
+            $note->recordActivity(ActivityAction::Edited);
+        });
+
+        static::deleted(fn (Note $note) => $note->recordActivity(ActivityAction::Deleted));
+
+        static::restored(fn (Note $note) => $note->recordActivity(ActivityAction::Restored));
     }
 
     /**
@@ -85,6 +102,11 @@ class Note extends Model
     public function teams(): BelongsToMany
     {
         return $this->belongsToMany(Team::class);
+    }
+
+    public function activities(): HasMany
+    {
+        return $this->hasMany(Activity::class);
     }
 
     /**
@@ -147,7 +169,7 @@ class Note extends Model
         return [
             'version' => 1,
             'notes' => ExportNoteResource::collection(
-                static::withTrashed()->with(['user', 'teams'])->orderBy('id')->get()
+                static::withTrashed()->with(['user', 'teams', 'activities.user'])->orderBy('id')->get()
             )->resolve(),
         ];
     }
@@ -183,6 +205,32 @@ class Note extends Model
     public function incrementReadCount(): void
     {
         static::withoutTimestamps(fn () => $this->incrementQuietly('read_count', 1, ['last_read_at' => now()]));
+
+        $this->recordActivity(ActivityAction::Read);
+    }
+
+    /**
+     * Dispatch this note action to the activity log. Skipped when nobody is
+     * signed in (seeders, console) - the log answers "who did what", and
+     * with no who there is nothing to record.
+     */
+    public function recordActivity(ActivityAction $action): void
+    {
+        if (Activity::loggingIsPaused()) {
+            return;
+        }
+
+        if (auth()->guest()) {
+            return;
+        }
+
+        NoteActivityHappened::dispatch(
+            auth()->id(),
+            $this->id,
+            $action,
+            "{$action->value} note #{$this->code} '{$this->title}'",
+            now(),
+        );
     }
 
     private function markdownConverter(): MarkdownConverter

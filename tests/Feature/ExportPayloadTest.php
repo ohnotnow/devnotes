@@ -1,5 +1,7 @@
 <?php
 
+use App\Enums\ActivityAction;
+use App\Models\Activity;
 use App\Models\Note;
 use App\Models\Team;
 use App\Models\User;
@@ -35,8 +37,24 @@ it('builds a versioned export payload matching the golden master', function () {
         'title' => 'How to install the puppet client on Rocky Linux',
         'body' => "## Install\n\nAdd the puppet repo, then `dnf install puppet-agent`.",
         'user_id' => $author->id,
+        'read_count' => 3,
+        'last_read_at' => '2026-08-15 09:00:00',
     ]);
     $teamNote->teams()->attach([$sysadmins->id, $developers->id]);
+    Activity::factory()->create([
+        'ulid' => '01ARZ3NDEKTSV4RRFFQ69G5AA1',
+        'user_id' => $author->id,
+        'note_id' => $teamNote->id,
+        'action' => ActivityAction::Created,
+        'description' => "created note #abq4x 'How to install the puppet client on Rocky Linux'",
+    ]);
+    Activity::factory()->create([
+        'ulid' => '01ARZ3NDEKTSV4RRFFQ69G5AA2',
+        'user_id' => $adminAuthor->id,
+        'note_id' => $teamNote->id,
+        'action' => ActivityAction::Read,
+        'description' => "read note #abq4x 'How to install the puppet client on Rocky Linux'",
+    ]);
     $deletedNote = Note::factory()->create([
         'ulid' => '01ARZ3NDEKTSV4RRFFQ69G5FA3',
         'code' => 'zde77',
