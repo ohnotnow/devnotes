@@ -45,15 +45,35 @@ it('filters activity by a search over the message and the user name', function (
         ->assertDontSee('Puppet modules');
 });
 
-it('filters activity by action so reads cannot drown out edits', function () {
+it('toggles an action filter on and off from its badge button', function () {
     $author = User::factory()->create();
     $this->actingAs($author);
-    $note = Note::factory()->create(['code' => 'abq4x', 'title' => 'Puppet modules']);
-    $note->update(['title' => 'Puppet modules v2']);
+    Note::factory()->create(['code' => 'abq4x', 'title' => 'Puppet modules']);
     $admin = User::factory()->create(['is_admin' => true]);
 
     Livewire::actingAs($admin)->test(ActivityLog::class)
-        ->set('action', 'edited')
+        ->call('toggleAction', 'edited')
+        ->assertDontSee("created note #abq4x 'Puppet modules'")
+        ->call('toggleAction', 'edited')
+        ->assertSee("created note #abq4x 'Puppet modules'");
+});
+
+it('filters activity by any combination of action toggles, alongside the search', function () {
+    $author = User::factory()->create();
+    $this->actingAs($author);
+    $incidentNote = Note::factory()->create(['code' => 'abq4x', 'title' => 'Puppet modules']);
+    $incidentNote->update(['title' => 'Puppet modules v2']);
+    $reader = User::factory()->create();
+    $this->actingAs($reader);
+    $incidentNote->incrementReadCount();
+    Note::factory()->create(['code' => 'zde77', 'title' => 'Docker cache']);
+    $admin = User::factory()->create(['is_admin' => true]);
+
+    Livewire::actingAs($admin)->test(ActivityLog::class)
+        ->set('search', '#abq4x')
+        ->set('actions', ['read', 'edited'])
         ->assertSee("edited note #abq4x 'Puppet modules v2'")
-        ->assertDontSee("created note #abq4x 'Puppet modules'");
+        ->assertSee("read note #abq4x 'Puppet modules v2'")
+        ->assertDontSee("created note #abq4x 'Puppet modules'")
+        ->assertDontSee('Docker cache');
 });

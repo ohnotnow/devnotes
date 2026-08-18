@@ -2,6 +2,7 @@
 
 namespace App\Livewire\Admin;
 
+use App\Enums\ActivityAction;
 use App\Models\Activity;
 use Livewire\Attributes\Url;
 use Livewire\Component;
@@ -15,14 +16,20 @@ class ActivityLog extends Component
     public $search = '';
 
     #[Url]
-    public $action = '';
+    public $actions = [];
 
     public function render()
     {
         return view('livewire.admin.activity-log', [
+            'actionFilters' => collect(ActivityAction::cases())->map(fn (ActivityAction $action): array => [
+                'value' => $action->value,
+                'label' => $action->label(),
+                'active' => in_array($action->value, $this->actions),
+                'colour' => in_array($action->value, $this->actions) ? $action->colour() : 'zinc',
+            ]),
             'activities' => Activity::with('user')
                 ->when($this->search !== '', fn ($query) => $query->matching($this->search))
-                ->when($this->action !== '', fn ($query) => $query->where('action', $this->action))
+                ->when($this->actions !== [], fn ($query) => $query->whereIn('action', $this->actions))
                 ->orderByDesc('created_at')
                 ->orderByDesc('id')
                 ->paginate(20),
@@ -34,8 +41,12 @@ class ActivityLog extends Component
         $this->resetPage();
     }
 
-    public function updatedAction(): void
+    public function toggleAction(string $action): void
     {
+        $this->actions = in_array($action, $this->actions)
+            ? array_values(array_diff($this->actions, [$action]))
+            : [...$this->actions, $action];
+
         $this->resetPage();
     }
 }

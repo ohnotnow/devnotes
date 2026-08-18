@@ -2,20 +2,27 @@
     <flux:heading size="xl" level="1">Activity</flux:heading>
     <flux:text class="mt-2">Who did what, note by note.</flux:text>
 
-    <div class="mt-6 flex gap-4">
+    <div class="mt-6 flex items-center gap-6">
         <flux:input
             wire:model.live.debounce.300ms="search"
             icon="magnifying-glass"
             placeholder="Search by #code, title or person"
             aria-label="Search activity"
             clearable
+            class="max-w-md"
         />
-        <flux:select wire:model.live="action" aria-label="Filter by action" class="max-w-40">
-            <flux:select.option value="">All actions</flux:select.option>
-            @foreach (App\Enums\ActivityAction::cases() as $activityAction)
-                <flux:select.option value="{{ $activityAction->value }}">{{ $activityAction->label() }}</flux:select.option>
+        <div class="flex items-center gap-2" role="group" aria-label="Filter by action">
+            @foreach ($actionFilters as $filter)
+                <flux:badge
+                    as="button"
+                    :color="$filter['colour']"
+                    :icon="$filter['active'] ? 'check' : null"
+                    aria-pressed="{{ $filter['active'] ? 'true' : 'false' }}"
+                    wire:click="toggleAction('{{ $filter['value'] }}')"
+                    wire:key="action-filter-{{ $filter['value'] }}"
+                >{{ $filter['label'] }}</flux:badge>
             @endforeach
-        </flux:select>
+        </div>
     </div>
 
     <flux:table :paginate="$activities" class="mt-6">
