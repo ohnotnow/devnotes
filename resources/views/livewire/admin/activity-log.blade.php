@@ -25,6 +25,10 @@
         </div>
     </div>
 
+    {{-- Screen-reader announcement of filter/search outcomes (WCAG 4.1.3) -
+         the region persists across Livewire morphs, only its text changes. --}}
+    <div role="status" class="sr-only">{{ $resultsSummary }}</div>
+
     <flux:table :paginate="$activities" class="mt-6">
         <flux:table.columns>
             <flux:table.column>When</flux:table.column>

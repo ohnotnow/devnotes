@@ -45,6 +45,20 @@ it('filters activity by a search over the message and the user name', function (
         ->assertDontSee('Puppet modules');
 });
 
+it('announces the result count in a status region when the filters change it', function () {
+    $author = User::factory()->create();
+    $this->actingAs($author);
+    $note = Note::factory()->create(['code' => 'abq4x', 'title' => 'Puppet modules']);
+    $note->update(['title' => 'Puppet modules v2']);
+    $admin = User::factory()->create(['is_admin' => true]);
+
+    Livewire::actingAs($admin)->test(ActivityLog::class)
+        ->assertSeeHtml('role="status"')
+        ->assertSee('Showing 2 results')
+        ->call('toggleAction', 'edited')
+        ->assertSee('Showing 1 result');
+});
+
 it('toggles an action filter on and off from its badge button', function () {
     $author = User::factory()->create();
     $this->actingAs($author);
