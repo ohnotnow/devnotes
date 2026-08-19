@@ -41,7 +41,7 @@
                         <flux:badge color="zinc" size="sm" inset="top bottom">#{{ $note->code }}</flux:badge>
                         <flux:link :href="route('notes.show', $note)" wire:navigate>{{ $note->title }}</flux:link>
                         @foreach ($note->teams as $team)
-                            <flux:badge color="sky" size="sm" inset="top bottom">{{ $team->name }}</flux:badge>
+                            <flux:badge :color="$team->colour()" size="sm" inset="top bottom">{{ $team->name }}</flux:badge>
                         @endforeach
                     </flux:table.cell>
                     <flux:table.cell>{{ $note->user->full_name }}</flux:table.cell>

@@ -38,6 +38,14 @@ it('lets subscriptions and note defaults diverge independently', function () {
     expect($member->defaultNoteTeams->sole()->is($team))->toBeTrue();
 });
 
+it('gives consecutive teams different badge colours', function () {
+    $teams = Team::factory()->count(5)->create();
+
+    $colours = $teams->map(fn (Team $team) => $team->colour());
+
+    expect($colours->unique())->toHaveCount(5);
+});
+
 it('lets a note carry several teams', function () {
     $developers = Team::factory()->create(['name' => 'developers']);
     $sysadmins = Team::factory()->create(['name' => 'sysadmins']);

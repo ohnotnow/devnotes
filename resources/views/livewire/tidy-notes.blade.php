@@ -83,7 +83,7 @@
                     @if ($previewNote->teams->isNotEmpty())
                         <div class="mt-2 flex gap-2">
                             @foreach ($previewNote->teams as $team)
-                                <flux:badge color="sky" size="sm">{{ $team->name }}</flux:badge>
+                                <flux:badge :color="$team->colour()" size="sm">{{ $team->name }}</flux:badge>
                             @endforeach
                         </div>
                     @endif
