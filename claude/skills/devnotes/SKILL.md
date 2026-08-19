@@ -25,9 +25,17 @@ Not worth a note:
 - Routine how-tos and session-specific detail ("restarted the queue worker
   today") that will not help the next reader.
 
-When unsure, lean towards capturing it - notes are cheap and soft-deleted, and
-a mediocre note beats a lost lesson. But say what you are about to write before
-calling add-note, so the developer can veto or sharpen it.
+When unsure, lean towards capturing it when it seems to be a 'formal' or 
+'employer' project - notes are cheap and soft-deleted, and a mediocre note 
+beats a lost lesson. But say what you are about to write before calling add-note, 
+so the developer can veto or sharpen it.
+
+**Never** write a note without asking the user first.  They have the context and overall 
+view of their own team and the broader organisationn that you don't.  But make it friendly, 
+collegial - "That sqlite vs mysql thing really caused us a lot of pain, should we make a
+devnote about it?"
+
+
 
 ## Write for the stranger
 
