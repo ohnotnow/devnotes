@@ -46,7 +46,7 @@ class AddNote extends Tool
         ];
 
         $user = User::findOrFail($actingUser->id);
-        $similarNotes = Note::searchScoped($user, $note->title)->take(4)->get()
+        $similarNotes = Note::similarTo($user, $note->title)
             ->reject(fn (Note $found) => $found->is($note))
             ->take(3);
 

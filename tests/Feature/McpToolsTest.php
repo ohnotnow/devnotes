@@ -228,6 +228,38 @@ it('returns similar notes from add-note as a dup nudge while still creating', fu
     expect(Note::where('title', 'Docker layer cache misses')->exists())->toBeTrue();
 });
 
+it('nudges when titles merely overlap, best overlap first', function () {
+    $developers = Team::factory()->create(['name' => 'developers']);
+    $agentUser = User::factory()->create();
+    $agentUser->teams()->attach($developers);
+    $closeNote = Note::factory()->create(['title' => 'Docker layer cache misses on multi-stage builds']);
+    $closeNote->teams()->attach($developers);
+    $looseNote = Note::factory()->create(['title' => 'Docker daemon log rotation']);
+    $looseNote->teams()->attach($developers);
+
+    $response = DevnotesServer::actingAs(OAuthUser::findOrFail($agentUser->id))->tool(AddNote::class, [
+        'title' => 'Docker layer cache invalidation',
+        'body' => 'Body.',
+    ]);
+
+    $response->assertOk();
+    // closeNote shares three title words (docker, layer, cache), looseNote one (docker).
+    $response->assertSee('"similar_notes":[{"code":"'.$closeNote->code.'","title":"Docker layer cache misses on multi-stage builds"},{"code":"'.$looseNote->code.'","title":"Docker daemon log rotation"}]');
+});
+
+it('adds no dup nudge when the title has only short words', function () {
+    $user = User::factory()->create();
+    Note::factory()->create(['title' => 'Postgres ilike gotcha', 'body' => 'It bit us now and then.']);
+
+    $response = DevnotesServer::actingAs(OAuthUser::findOrFail($user->id))->tool(AddNote::class, [
+        'title' => 'Fix it now',
+        'body' => 'Body.',
+    ]);
+
+    $response->assertOk();
+    $response->assertDontSee('similar_notes');
+});
+
 it('adds no dup nudge when nothing similar exists', function () {
     $user = User::factory()->create();
     Note::factory()->create(['title' => 'Postgres like-vs-ilike gotcha', 'body' => 'Unrelated body.']);
