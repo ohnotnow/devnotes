@@ -16,6 +16,7 @@ class TestDataSeeder extends Seeder
         [$adminUser, $standardUser] = $this->createUsers();
         [$developers, $sysadmins] = $this->createTeams($adminUser, $standardUser);
         $this->createNotes($adminUser, $standardUser, $developers, $sysadmins);
+        $this->createFillerNotes($adminUser, $standardUser, $developers, $sysadmins);
         $this->createActivities($adminUser, $standardUser);
     }
 
@@ -100,6 +101,36 @@ class TestDataSeeder extends Seeder
         $sysadminDockerNote->teams()->attach($sysadmins);
 
         Note::factory(3)->create(['user_id' => $standardUser->id]);
+    }
+
+    /**
+     * A thousand filler notes so local browsing, search and pagination feel
+     * realistic. Local only - the seeder tests pin exact counts elsewhere.
+     * Runs before createActivities so every filler note gets a Created entry.
+     */
+    private function createFillerNotes(User $adminUser, User $standardUser, Team $developers, Team $sysadmins): void
+    {
+        if (! app()->environment('local')) {
+            return;
+        }
+
+        Note::factory(1000)
+            ->state(function () use ($adminUser, $standardUser) {
+                $createdAt = fake()->dateTimeBetween('-2 years');
+
+                return [
+                    'user_id' => fake()->randomElement([$adminUser->id, $standardUser->id]),
+                    'created_at' => $createdAt,
+                    'updated_at' => fake()->dateTimeBetween($createdAt),
+                    'read_count' => fake()->numberBetween(0, 40),
+                ];
+            })
+            ->create()
+            ->each(function (Note $note) use ($developers, $sysadmins) {
+                $team = fake()->randomElement([$developers, $sysadmins, null]);
+
+                $note->teams()->sync($team ? [$team->id] : []);
+            });
     }
 
     /**

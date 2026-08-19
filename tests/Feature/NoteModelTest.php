@@ -37,6 +37,16 @@ it('seeds notes including a #code cross-reference', function () {
     expect((string) $followUpNote->rendered_body)->toContain(route('notes.show', $originalNote));
 });
 
+it('seeds a thousand filler notes in the local environment only', function () {
+    $this->app['env'] = 'local';
+
+    $this->seed(TestDataSeeder::class);
+
+    expect(Note::count())->toBe(1007);
+    expect(Note::where('read_count', '>', 0)->count())->toBeGreaterThan(0);
+    expect(Note::whereHas('teams')->count())->toBeGreaterThan(4);
+});
+
 it('mints a code and a ulid when a note is created', function () {
     $note = Note::factory()->create();
 
