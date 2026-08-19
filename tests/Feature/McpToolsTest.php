@@ -40,6 +40,24 @@ it('finds matching notes via search-notes returning snippets rather than full bo
     $noMatches->assertDontSee('retry with broader');
 });
 
+it('reports the total match count so a truncated result set is visible', function () {
+    $user = User::factory()->create();
+    foreach (range(1, 21) as $i) {
+        Note::factory()->create(['title' => "Docker gotcha {$i}", 'updated_at' => now()->subDays(30)->addDays($i)]);
+    }
+    $oldestNote = Note::where('title', 'Docker gotcha 1')->sole();
+
+    $response = DevnotesServer::actingAs(OAuthUser::findOrFail($user->id))->tool(SearchNotes::class, [
+        'query' => 'docker',
+    ]);
+
+    $response->assertOk();
+    $response->assertSee('"total_matches":21');
+    // Recency-ordered with a cap of 20, so the oldest match falls off the end.
+    $response->assertSee('Docker gotcha 21');
+    $response->assertDontSee($oldestNote->code);
+});
+
 it('keeps the hint on a scoped search with zero results', function () {
     $developers = Team::factory()->create(['name' => 'developers']);
     $agentUser = User::factory()->create();
@@ -245,6 +263,47 @@ it('nudges when titles merely overlap, best overlap first', function () {
     $response->assertOk();
     // closeNote shares three title words (docker, layer, cache), looseNote one (docker).
     $response->assertSee('"similar_notes":[{"code":"'.$closeNote->code.'","title":"Docker layer cache misses on multi-stage builds"},{"code":"'.$looseNote->code.'","title":"Docker daemon log rotation"}]');
+});
+
+it('ignores a lone body-word overlap in the dup nudge', function () {
+    // Observed live: 'manifest' deep in an unrelated note's body dragged that
+    // note into the nudge. One shared word in a body is coincidence, not
+    // similarity - it takes a shared title word, or two body words, to nudge.
+    $developers = Team::factory()->create(['name' => 'developers']);
+    $agentUser = User::factory()->create();
+    $agentUser->teams()->attach($developers);
+    $dockerNote = Note::factory()->create([
+        'title' => 'Docker layer cache misses on multi-stage builds',
+        'body' => 'Copying package manifests before the source keeps the layer cache warm.',
+    ]);
+    $dockerNote->teams()->attach($developers);
+
+    $response = DevnotesServer::actingAs(OAuthUser::findOrFail($agentUser->id))->tool(AddNote::class, [
+        'title' => 'Vite manifest goes stale after npm upgrade',
+        'body' => 'Body.',
+    ]);
+
+    $response->assertOk();
+    $response->assertDontSee('similar_notes');
+});
+
+it('still nudges when two title words appear in an existing note\'s body', function () {
+    $developers = Team::factory()->create(['name' => 'developers']);
+    $agentUser = User::factory()->create();
+    $agentUser->teams()->attach($developers);
+    $existingNote = Note::factory()->create([
+        'title' => 'Npm dependency hoisting surprises',
+        'body' => 'Check the vite manifest when builds act oddly.',
+    ]);
+    $existingNote->teams()->attach($developers);
+
+    $response = DevnotesServer::actingAs(OAuthUser::findOrFail($agentUser->id))->tool(AddNote::class, [
+        'title' => 'Vite manifest goes stale after npm upgrade',
+        'body' => 'Body.',
+    ]);
+
+    $response->assertOk();
+    $response->assertSee('"similar_notes":[{"code":"'.$existingNote->code.'","title":"Npm dependency hoisting surprises"}]');
 });
 
 it('adds no dup nudge when the title has only short words', function () {

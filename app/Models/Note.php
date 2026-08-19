@@ -16,6 +16,7 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\SoftDeletes;
+use Illuminate\Support\Collection as SupportCollection;
 use Illuminate\Support\HtmlString;
 use Illuminate\Support\Str;
 use League\CommonMark\Environment\Environment;
@@ -150,7 +151,9 @@ class Note extends Model
      * The notes sharing the most meaningful words with the given title, as
      * the user sees the pot (see scopeInTeamsOf) - the "did you search
      * first?" nudge behind add-note. Words under four characters are too
-     * common to signal similarity, so they are skipped.
+     * common to signal similarity, so they are skipped, and a note needs a
+     * similarity score of at least 2 (see similarityScore) - one stray word
+     * in a body is coincidence, not similarity.
      *
      * @return Collection<int, static>
      */
@@ -179,11 +182,26 @@ class Note extends Model
             ->get();
 
         return $candidates
-            ->sortByDesc(fn (Note $note) => $words->filter(
-                fn (string $word) => Str::contains($note->title.' '.$note->body, $word, ignoreCase: true)
-            )->count())
+            ->filter(fn (Note $note) => $note->similarityScore($words) >= 2)
+            ->sortByDesc(fn (Note $note) => $note->similarityScore($words))
             ->take(4)
             ->values();
+    }
+
+    /**
+     * How strongly this note overlaps the given title words: 2 per word
+     * found in the title, 1 per word found only in the body. Titles are
+     * deliberate, body mentions often incidental.
+     *
+     * @param  SupportCollection<int, string>  $words
+     */
+    public function similarityScore(SupportCollection $words): int
+    {
+        return (int) $words->sum(fn (string $word) => match (true) {
+            Str::contains($this->title, $word, ignoreCase: true) => 2,
+            Str::contains($this->body, $word, ignoreCase: true) => 1,
+            default => 0,
+        });
     }
 
     /**
