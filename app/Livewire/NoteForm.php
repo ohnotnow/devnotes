@@ -23,6 +23,13 @@ class NoteForm extends Component
         'editing.body' => 'note',
     ];
 
+    public function render()
+    {
+        return view('livewire.note-form', [
+            'teams' => Team::orderBy('name')->get(),
+        ]);
+    }
+
     #[On('note-editor:create')]
     public function openCreate(): void
     {
@@ -64,12 +71,5 @@ class NoteForm extends Component
         Flux::modal('note-editor')->close();
         Flux::toast("Saved note #{$note->code}", variant: 'success');
         $this->dispatch('note-saved');
-    }
-
-    public function render()
-    {
-        return view('livewire.note-form', [
-            'teams' => Team::orderBy('name')->get(),
-        ]);
     }
 }

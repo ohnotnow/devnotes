@@ -16,6 +16,18 @@ class ApiTokens extends Component
     #[Url]
     public $showAll = false;
 
+    public function render()
+    {
+        $showingAll = $this->isShowingAll();
+
+        return view('livewire.api-tokens', [
+            'showingAll' => $showingAll,
+            'tokens' => $showingAll
+                ? PersonalAccessToken::with('tokenable')->latest()->get()
+                : auth()->user()->tokens()->latest()->get(),
+        ]);
+    }
+
     public function create(): void
     {
         $this->validate([
@@ -42,17 +54,5 @@ class ApiTokens extends Component
     private function isShowingAll(): bool
     {
         return auth()->user()->can('admin') && filter_var($this->showAll, FILTER_VALIDATE_BOOL);
-    }
-
-    public function render()
-    {
-        $showingAll = $this->isShowingAll();
-
-        return view('livewire.api-tokens', [
-            'showingAll' => $showingAll,
-            'tokens' => $showingAll
-                ? PersonalAccessToken::with('tokenable')->latest()->get()
-                : auth()->user()->tokens()->latest()->get(),
-        ]);
     }
 }

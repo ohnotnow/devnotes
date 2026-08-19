@@ -16,6 +16,11 @@ class NoteShow extends Component
         $this->note->incrementReadCount();
     }
 
+    public function render()
+    {
+        return view('livewire.note-show');
+    }
+
     #[On('note-saved')]
     public function refreshNote(): void
     {
@@ -35,10 +40,5 @@ class NoteShow extends Component
         $this->note->restore();
 
         Flux::toast("Restored note #{$this->note->code}");
-    }
-
-    public function render()
-    {
-        return view('livewire.note-show');
     }
 }

@@ -18,10 +18,15 @@ class NotesIndex extends Component
     #[Url]
     public $broader = false;
 
-    #[On('note-saved')]
-    public function noteSaved(): void
+    public function render()
     {
-        // Re-render so a newly saved note appears in the list.
+        $broader = filter_var($this->broader, FILTER_VALIDATE_BOOL);
+
+        return view('livewire.notes-index', [
+            'notes' => $this->search
+                ? Note::searchScoped(auth()->user(), $this->search, $broader)->paginate(20)
+                : Note::with(['user', 'teams'])->when(! $broader, fn ($query) => $query->inTeamsOf(auth()->user()))->orderByDesc('updated_at')->orderByDesc('id')->paginate(20),
+        ]);
     }
 
     public function updatedSearch(): void
@@ -34,14 +39,9 @@ class NotesIndex extends Component
         $this->resetPage();
     }
 
-    public function render()
+    #[On('note-saved')]
+    public function noteSaved(): void
     {
-        $broader = filter_var($this->broader, FILTER_VALIDATE_BOOL);
-
-        return view('livewire.notes-index', [
-            'notes' => $this->search
-                ? Note::searchScoped(auth()->user(), $this->search, $broader)->paginate(20)
-                : Note::with(['user', 'teams'])->when(! $broader, fn ($query) => $query->inTeamsOf(auth()->user()))->orderByDesc('updated_at')->orderByDesc('id')->paginate(20),
-        ]);
+        // Re-render so a newly saved note appears in the list.
     }
 }

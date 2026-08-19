@@ -18,6 +18,13 @@ class TeamSettings extends Component
         $this->defaultTeamIds = auth()->user()->defaultNoteTeams()->pluck('teams.id')->all();
     }
 
+    public function render()
+    {
+        return view('livewire.team-settings', [
+            'teams' => Team::orderBy('name')->get(),
+        ]);
+    }
+
     public function save(): void
     {
         $this->validate([
@@ -33,12 +40,5 @@ class TeamSettings extends Component
         );
 
         Flux::toast('Teams saved', variant: 'success');
-    }
-
-    public function render()
-    {
-        return view('livewire.team-settings', [
-            'teams' => Team::orderBy('name')->get(),
-        ]);
     }
 }

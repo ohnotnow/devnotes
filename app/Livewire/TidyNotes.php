@@ -17,6 +17,26 @@ class TidyNotes extends Component
 
     public ?int $previewNoteId = null;
 
+    public function render()
+    {
+        $showingAll = $this->isShowingAll();
+
+        return view('livewire.tidy-notes', [
+            'showingAll' => $showingAll,
+            'previewNote' => $this->previewNoteId ? Note::with(['user', 'teams'])->find($this->previewNoteId) : null,
+            'notes' => Note::with('user')
+                ->when(! $showingAll, fn ($query) => $query->where('user_id', auth()->id()))
+                ->orderBy('read_count')
+                ->orderBy('last_read_at')
+                ->paginate(20),
+        ]);
+    }
+
+    public function updatedShowAll(): void
+    {
+        $this->resetPage();
+    }
+
     public function preview(int $noteId): void
     {
         $this->previewNoteId = $noteId;
@@ -32,28 +52,8 @@ class TidyNotes extends Component
         Flux::toast("Deleted note #{$note->code}");
     }
 
-    public function updatedShowAll(): void
-    {
-        $this->resetPage();
-    }
-
     private function isShowingAll(): bool
     {
         return auth()->user()->can('admin') && filter_var($this->showAll, FILTER_VALIDATE_BOOL);
-    }
-
-    public function render()
-    {
-        $showingAll = $this->isShowingAll();
-
-        return view('livewire.tidy-notes', [
-            'showingAll' => $showingAll,
-            'previewNote' => $this->previewNoteId ? Note::with(['user', 'teams'])->find($this->previewNoteId) : null,
-            'notes' => Note::with('user')
-                ->when(! $showingAll, fn ($query) => $query->where('user_id', auth()->id()))
-                ->orderBy('read_count')
-                ->orderBy('last_read_at')
-                ->paginate(20),
-        ]);
     }
 }

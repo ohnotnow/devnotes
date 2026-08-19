@@ -16,6 +16,13 @@ class Teams extends Component
 
     public ?Team $deletingTeam = null;
 
+    public function render()
+    {
+        return view('livewire.admin.teams', [
+            'teams' => Team::orderBy('name')->withCount(['users', 'notes'])->get(),
+        ]);
+    }
+
     public function openCreate(): void
     {
         $this->reset('editing');
@@ -65,12 +72,5 @@ class Teams extends Component
         $this->reset('deletingTeam');
         Flux::modal('team-delete')->close();
         Flux::toast("Deleted team {$name} - its notes now show in every search");
-    }
-
-    public function render()
-    {
-        return view('livewire.admin.teams', [
-            'teams' => Team::orderBy('name')->withCount(['users', 'notes'])->get(),
-        ]);
     }
 }

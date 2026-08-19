@@ -19,6 +19,11 @@ class ChangePassword extends Component
         abort_if(config('sso.enabled'), 404);
     }
 
+    public function render()
+    {
+        return view('livewire.change-password');
+    }
+
     public function save(): void
     {
         $this->validate([
@@ -33,10 +38,5 @@ class ChangePassword extends Component
 
         $this->reset('currentPassword', 'newPassword', 'newPassword_confirmation');
         Flux::toast('Password changed', variant: 'success');
-    }
-
-    public function render()
-    {
-        return view('livewire.change-password');
     }
 }

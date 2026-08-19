@@ -29,6 +29,14 @@ class Users extends Component
 
     public $transferToId = '';
 
+    public function render()
+    {
+        return view('livewire.admin.users', [
+            'users' => User::orderBy('surname')->orderBy('email')->withCount('notes')->with('teams')->get(),
+            'teams' => Team::orderBy('name')->get(),
+        ]);
+    }
+
     public function openAdd(): void
     {
         $this->reset('editingUser', 'email', 'username', 'forenames', 'surname', 'selectedTeamIds');
@@ -227,13 +235,5 @@ class Users extends Component
         $this->reset('deletingUser', 'transferToId');
         Flux::modal('user-delete')->close();
         Flux::toast("Deleted - their notes now belong to {$recipient->full_name}");
-    }
-
-    public function render()
-    {
-        return view('livewire.admin.users', [
-            'users' => User::orderBy('surname')->orderBy('email')->withCount('notes')->with('teams')->get(),
-            'teams' => Team::orderBy('name')->get(),
-        ]);
     }
 }
