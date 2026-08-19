@@ -36,11 +36,13 @@ class Activity extends Model
         });
     }
 
+    /** @return BelongsTo<User, $this> */
     public function user(): BelongsTo
     {
         return $this->belongsTo(User::class);
     }
 
+    /** @return BelongsTo<Note, $this> */
     public function note(): BelongsTo
     {
         return $this->belongsTo(Note::class);
@@ -70,17 +72,17 @@ class Activity extends Model
      */
     public static function withoutLogging(Closure $callback): mixed
     {
-        static::$loggingPaused = true;
+        self::$loggingPaused = true;
 
         try {
             return $callback();
         } finally {
-            static::$loggingPaused = false;
+            self::$loggingPaused = false;
         }
     }
 
     public static function loggingIsPaused(): bool
     {
-        return static::$loggingPaused;
+        return self::$loggingPaused;
     }
 }

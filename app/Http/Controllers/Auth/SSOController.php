@@ -130,7 +130,7 @@ class SSOController extends Controller
         return redirect()->route('logged_out');
     }
 
-    private function getSuccessRedirect(): RedirectResponse|LivewireRedirector
+    private function getSuccessRedirect(): RedirectResponse
     {
         if (Route::has('home')) {
             return redirect()->intended(route('home'));

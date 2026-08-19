@@ -27,6 +27,7 @@ class AppServiceProvider extends ServiceProvider
     {
         Gate::define('admin', fn (User $user): bool => (bool) $user->is_admin);
 
+        // @phpstan-ignore argument.type (Passport's docblock wants a Symfony Response, but the router converts a returned View downstream - Passport's own docs use view() here)
         Passport::authorizationView(fn (array $parameters) => view('mcp.authorize', $parameters));
 
         RateLimiter::for('api', fn (Request $request) => Limit::perMinute(60)->by($request->user()?->id ?: $request->ip()));

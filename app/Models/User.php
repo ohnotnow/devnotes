@@ -14,6 +14,9 @@ use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
 use Laravel\Sanctum\HasApiTokens;
 
+/**
+ * @property-read string $full_name
+ */
 #[Fillable(['username', 'email', 'password', 'surname', 'forenames', 'is_admin', 'is_staff', 'must_change_password'])]
 #[Hidden(['password', 'remember_token'])]
 class User extends Authenticatable
@@ -37,21 +40,25 @@ class User extends Authenticatable
         ];
     }
 
+    /** @return HasMany<Note, $this> */
     public function notes(): HasMany
     {
         return $this->hasMany(Note::class);
     }
 
+    /** @return BelongsToMany<Team, $this> */
     public function teams(): BelongsToMany
     {
         return $this->belongsToMany(Team::class)->withPivot(['subscribed', 'note_default']);
     }
 
+    /** @return BelongsToMany<Team, $this> */
     public function subscribedTeams(): BelongsToMany
     {
         return $this->teams()->wherePivot('subscribed', true);
     }
 
+    /** @return BelongsToMany<Team, $this> */
     public function defaultNoteTeams(): BelongsToMany
     {
         return $this->teams()->wherePivot('note_default', true);

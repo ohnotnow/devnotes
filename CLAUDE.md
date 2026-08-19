@@ -16,6 +16,7 @@ A scrappy "wiki meets GitHub gists" for our small dev team: tiny markdown notes 
 - Any new model whose rows travel through export/import needs a `ulid` column minted on creation (see `Note::booted()`) - the ulid is the cross-install identity that keeps re-imports idempotent. Codes/ids do not survive merging two pots; ulids do.
 - Flux UI everywhere; create/edit forms use `flux:modal variant="flyout"`. New screens need: `flux:heading level=`, `autofocus` in modals, aria-labels on switches - the a11y bar is real for us (.ac.uk).
 - Commits: `agent-commit` only (explicit file list, preview then `--yes TOKEN`, no attribution). The user has permitted its use; never push to GitHub without their say-so.
+- After finishing a piece of PHP work, run `./vendor/bin/phpstan analyse --memory-limit=2G` - the repo holds PHPStan level 5 clean, so fix anything it reports before calling the work done.
 
 ## The other Claude
 

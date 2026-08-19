@@ -25,7 +25,9 @@ class SearchNotes extends Tool
             'broader' => ['sometimes', 'boolean'],
         ]);
 
-        $user = User::findOrFail($request->user()->id);
+        /** @var User $actingUser */
+        $actingUser = $request->user();
+        $user = User::findOrFail($actingUser->id);
         $broader = $validated['broader'] ?? false;
         $subscribedTeamIds = $user->subscribedTeams()->pluck('teams.id');
 

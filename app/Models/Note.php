@@ -94,16 +94,19 @@ class Note extends Model
         ];
     }
 
+    /** @return BelongsTo<User, $this> */
     public function user(): BelongsTo
     {
         return $this->belongsTo(User::class);
     }
 
+    /** @return BelongsToMany<Team, $this> */
     public function teams(): BelongsToMany
     {
         return $this->belongsToMany(Team::class);
     }
 
+    /** @return HasMany<Activity, $this> */
     public function activities(): HasMany
     {
         return $this->hasMany(Activity::class);
@@ -138,6 +141,8 @@ class Note extends Model
      * everything when broader. Eager loads live here because Scout's
      * Builder::query() replaces its callback - callers must never chain their
      * own ->query() or they silently discard the team scoping.
+     *
+     * @return ScoutBuilder<static>
      */
     public static function searchScoped(User $user, string $search, bool $broader = false): ScoutBuilder
     {

@@ -1,0 +1,20 @@
+includes:
+    - vendor/larastan/larastan/extension.neon
+    - vendor/nesbot/carbon/extension.neon
+
+parameters:
+
+    paths:
+        - app/
+
+    level: 5
+
+    parseModelCastsMethod: true
+
+    ignoreErrors:
+        # Socialite returns contract interfaces but the concrete user/provider
+        # carries the properties and with() - known Larastan blind spot
+        - identifier: property.notFound
+          message: '#Laravel\\Socialite\\Contracts\\User::#'
+        - identifier: method.notFound
+          message: '#Laravel\\Socialite\\Contracts\\Provider::with\(\)#'
