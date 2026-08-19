@@ -44,3 +44,19 @@ it('rate limits the mcp endpoint to 60 requests per minute per user', function (
     Passport::actingAs(OAuthUser::findOrFail(User::factory()->create()->id));
     $this->postJson('/mcp', $initialize)->assertSuccessful();
 });
+
+it('rate limits oauth client registration to 10 per minute per ip', function () {
+    $registration = [
+        'client_name' => 'test-client',
+        'redirect_uris' => ['https://claude.ai/api/mcp/auth_callback'],
+        'grant_types' => ['authorization_code'],
+        'response_types' => ['code'],
+        'token_endpoint_auth_method' => 'none',
+    ];
+
+    foreach (range(1, 10) as $request) {
+        $this->postJson('/oauth/register', $registration)->assertCreated();
+    }
+
+    $this->postJson('/oauth/register', $registration)->assertStatus(429);
+});

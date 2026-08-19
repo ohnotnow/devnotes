@@ -30,5 +30,7 @@ class AppServiceProvider extends ServiceProvider
         Passport::authorizationView(fn (array $parameters) => view('mcp.authorize', $parameters));
 
         RateLimiter::for('api', fn (Request $request) => Limit::perMinute(60)->by($request->user()?->id ?: $request->ip()));
+
+        RateLimiter::for('oauth-register', fn (Request $request) => Limit::perMinute(10)->by($request->ip()));
     }
 }
