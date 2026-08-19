@@ -142,10 +142,16 @@ class Note extends Model
     public static function searchScoped(User $user, string $search, bool $broader = false): ScoutBuilder
     {
         if ($broader) {
-            return static::search($search)->query(fn ($query) => $query->with(['user', 'teams']));
+            return static::search($search)
+                ->orderBy('updated_at', 'desc')
+                ->orderBy('id', 'desc')
+                ->query(fn ($query) => $query->with(['user', 'teams']));
         }
 
-        return static::search($search)->query(fn ($query) => $query->with(['user', 'teams'])->inTeamsOf($user));
+        return static::search($search)
+            ->orderBy('updated_at', 'desc')
+            ->orderBy('id', 'desc')
+            ->query(fn ($query) => $query->with(['user', 'teams'])->inTeamsOf($user));
     }
 
     /**

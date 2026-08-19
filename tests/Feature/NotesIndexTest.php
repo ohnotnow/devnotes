@@ -55,6 +55,18 @@ it('scopes search to the viewer\'s teams with a toggle to search all teams', fun
         ->assertSee('Docker daemon log rotation');
 });
 
+it('orders search results by most recently updated', function () {
+    $user = User::factory()->create();
+    Note::factory()->create(['title' => 'Postgres middle gotcha', 'updated_at' => now()->subDay()]);
+    Note::factory()->create(['title' => 'Postgres newest gotcha', 'updated_at' => now()]);
+    Note::factory()->create(['title' => 'Postgres oldest gotcha', 'updated_at' => now()->subDays(2)]);
+
+    Livewire::actingAs($user)
+        ->test(NotesIndex::class)
+        ->set('search', 'postgres')
+        ->assertSeeInOrder(['Postgres newest gotcha', 'Postgres middle gotcha', 'Postgres oldest gotcha']);
+});
+
 it('shows team badges on search results', function () {
     $distinctTeam = Team::factory()->create(['name' => 'platform-squad']);
     $viewer = User::factory()->create();
