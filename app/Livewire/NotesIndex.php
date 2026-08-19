@@ -36,10 +36,13 @@ class NotesIndex extends Component
 
     public function render()
     {
+        $broader = filter_var($this->broader, FILTER_VALIDATE_BOOL);
+
         return view('livewire.notes-index', [
             'notes' => $this->search
-                ? Note::searchScoped(auth()->user(), $this->search, filter_var($this->broader, FILTER_VALIDATE_BOOL))->paginate(20)
-                : Note::with('user')->latest()->paginate(20),
+                ? Note::searchScoped(auth()->user(), $this->search, $broader)->paginate(20)
+                : Note::with(['user', 'teams'])->when(! $broader, fn ($query) => $query->inTeamsOf(auth()->user()))->latest()->paginate(20),
+            'showTeamBadges' => (bool) $this->search || $broader,
         ]);
     }
 }

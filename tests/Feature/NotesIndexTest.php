@@ -82,16 +82,35 @@ it('shows team badges on search results', function () {
         ->assertSee('platform-squad');
 });
 
-it('shows all notes when browsing without a search term', function () {
+it('shows team badges when browsing all teams', function () {
+    $distinctTeam = Team::factory()->create(['name' => 'platform-squad']);
+    $viewer = User::factory()->create();
+    $taggedNote = Note::factory()->create(['title' => 'Docker layer cache misses']);
+    $taggedNote->teams()->attach($distinctTeam);
+
+    Livewire::actingAs($viewer)
+        ->test(NotesIndex::class)
+        ->set('broader', true)
+        ->assertSee('platform-squad');
+});
+
+it('scopes browsing to the viewer\'s teams with the same toggle to show all teams', function () {
     $developers = Team::factory()->create(['name' => 'developers']);
     $sysadmins = Team::factory()->create(['name' => 'sysadmins']);
     $developer = User::factory()->create();
     $developer->teams()->attach($developers);
+    $developerNote = Note::factory()->create(['title' => 'Docker layer cache misses']);
+    $developerNote->teams()->attach($developers);
+    Note::factory()->create(['title' => 'Compose healthcheck gotcha']);
     $sysadminNote = Note::factory()->create(['title' => 'Docker daemon log rotation']);
     $sysadminNote->teams()->attach($sysadmins);
 
     Livewire::actingAs($developer)
         ->test(NotesIndex::class)
+        ->assertSee('Docker layer cache misses')
+        ->assertSee('Compose healthcheck gotcha')
+        ->assertDontSee('Docker daemon log rotation')
+        ->set('broader', true)
         ->assertSee('Docker daemon log rotation');
 });
 

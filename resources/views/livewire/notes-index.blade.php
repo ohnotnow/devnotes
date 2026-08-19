@@ -22,8 +22,8 @@
         />
 
         <flux:field variant="inline">
-            <flux:switch wire:model.live="broader" aria-label="Search all teams" />
-            <flux:label>Search all teams</flux:label>
+            <flux:switch wire:model.live="broader" aria-label="All teams" />
+            <flux:label>All teams</flux:label>
         </flux:field>
     </div>
 
@@ -40,7 +40,7 @@
                     <flux:table.cell class="flex items-center gap-3">
                         <flux:badge color="zinc" size="sm" inset="top bottom">#{{ $note->code }}</flux:badge>
                         <flux:link :href="route('notes.show', $note)" wire:navigate>{{ $note->title }}</flux:link>
-                        @if ($search)
+                        @if ($showTeamBadges)
                             @foreach ($note->teams as $team)
                                 <flux:badge color="sky" size="sm" inset="top bottom">{{ $team->name }}</flux:badge>
                             @endforeach
