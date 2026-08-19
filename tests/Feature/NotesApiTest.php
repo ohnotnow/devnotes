@@ -30,7 +30,7 @@ it('lists notes newest-first in the documented envelope and filters via search',
     expect($search->json('data.0.title'))->toBe('An older postgres gotcha');
 });
 
-it('scopes search to the token user\'s teams and widens with broader', function () {
+it('scopes search and the list to the token user\'s teams and widens with broader', function () {
     $developers = Team::factory()->create(['name' => 'developers']);
     $sysadmins = Team::factory()->create(['name' => 'sysadmins']);
     $developer = Sanctum::actingAs(User::factory()->create());
@@ -51,7 +51,12 @@ it('scopes search to the token user\'s teams and widens with broader', function 
 
     $browsing = $this->getJson('/api/v1/notes');
     $browsing->assertSuccessful();
-    expect($browsing->json('data'))->toHaveCount(2);
+    expect($browsing->json('data'))->toHaveCount(1);
+    expect($browsing->json('data.0.code'))->toBe($developerNote->code);
+
+    $browsingBroader = $this->getJson('/api/v1/notes?broader=1');
+    $browsingBroader->assertSuccessful();
+    expect(collect($browsingBroader->json('data'))->pluck('code')->all())->toEqualCanonicalizing([$developerNote->code, $sysadminNote->code]);
 });
 
 it('shows a single note as raw markdown', function () {

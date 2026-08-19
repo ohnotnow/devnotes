@@ -13,7 +13,7 @@ class NoteController extends Controller
     {
         $notes = $request->filled('search')
             ? Note::searchScoped($request->user(), $request->input('search'), $request->boolean('broader'))->paginate(20)
-            : Note::with('user')->latest()->paginate(20);
+            : Note::with('user')->when(! $request->boolean('broader'), fn ($query) => $query->inTeamsOf($request->user()))->latest()->paginate(20);
 
         return NoteResource::collection($notes);
     }
