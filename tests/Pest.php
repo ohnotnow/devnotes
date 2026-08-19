@@ -48,3 +48,26 @@ function something()
 {
     // ..
 }
+
+/**
+ * Passport's guard needs a real RSA keypair even to reject a tokenless
+ * request. Generate one per test process rather than committing key
+ * files to the repo.
+ *
+ * @return array{string, string}
+ */
+function passportTestKeys(): array
+{
+    static $keys = null;
+
+    if ($keys === null) {
+        $resource = openssl_pkey_new([
+            'private_key_bits' => 2048,
+            'private_key_type' => OPENSSL_KEYTYPE_RSA,
+        ]);
+        openssl_pkey_export($resource, $privateKey);
+        $keys = [openssl_pkey_get_details($resource)['key'], $privateKey];
+    }
+
+    return $keys;
+}
