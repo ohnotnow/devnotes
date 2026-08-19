@@ -67,31 +67,61 @@ it('orders search results by most recently updated', function () {
         ->assertSeeInOrder(['Postgres newest gotcha', 'Postgres middle gotcha', 'Postgres oldest gotcha']);
 });
 
+it('orders the browse list by most recently updated, matching search results', function () {
+    $user = User::factory()->create();
+    Note::factory()->create(['title' => 'Middle gotcha', 'created_at' => now()->subDays(3), 'updated_at' => now()->subDay()]);
+    Note::factory()->create(['title' => 'Newest gotcha', 'created_at' => now()->subDays(2), 'updated_at' => now()]);
+    Note::factory()->create(['title' => 'Oldest gotcha', 'created_at' => now(), 'updated_at' => now()->subDays(2)]);
+
+    Livewire::actingAs($user)
+        ->test(NotesIndex::class)
+        ->assertSeeInOrder(['Newest gotcha', 'Middle gotcha', 'Oldest gotcha']);
+});
+
 it('shows team badges on search results', function () {
     $distinctTeam = Team::factory()->create(['name' => 'platform-squad']);
     $viewer = User::factory()->create();
     $viewer->teams()->attach($distinctTeam);
-    $taggedNote = Note::factory()->create(['title' => 'Docker layer cache misses']);
+    $author = User::factory()->create(['forenames' => 'Badged', 'surname' => 'Author']);
+    $taggedNote = Note::factory()->create(['title' => 'Docker layer cache misses', 'user_id' => $author->id]);
     $taggedNote->teams()->attach($distinctTeam);
 
-    // No assertDontSee for the browse state: the note form's team checkboxes
-    // legitimately put every team name in the page markup.
+    // assertSeeInOrder because a bare assertSee would match the note form's
+    // team checkboxes: the badge renders before the author cell in the row,
+    // while the form only appears after the table.
     Livewire::actingAs($viewer)
         ->test(NotesIndex::class)
         ->set('search', 'docker')
-        ->assertSee('platform-squad');
+        ->assertSeeInOrder(['platform-squad', 'Badged Author']);
+});
+
+it('shows team badges when browsing my teams', function () {
+    $distinctTeam = Team::factory()->create(['name' => 'platform-squad']);
+    $viewer = User::factory()->create();
+    $viewer->teams()->attach($distinctTeam);
+    $author = User::factory()->create(['forenames' => 'Badged', 'surname' => 'Author']);
+    $taggedNote = Note::factory()->create(['title' => 'Docker layer cache misses', 'user_id' => $author->id]);
+    $taggedNote->teams()->attach($distinctTeam);
+
+    // assertSeeInOrder because a bare assertSee would match the note form's
+    // team checkboxes: the badge renders before the author cell in the row,
+    // while the form only appears after the table.
+    Livewire::actingAs($viewer)
+        ->test(NotesIndex::class)
+        ->assertSeeInOrder(['platform-squad', 'Badged Author']);
 });
 
 it('shows team badges when browsing all teams', function () {
     $distinctTeam = Team::factory()->create(['name' => 'platform-squad']);
     $viewer = User::factory()->create();
-    $taggedNote = Note::factory()->create(['title' => 'Docker layer cache misses']);
+    $author = User::factory()->create(['forenames' => 'Badged', 'surname' => 'Author']);
+    $taggedNote = Note::factory()->create(['title' => 'Docker layer cache misses', 'user_id' => $author->id]);
     $taggedNote->teams()->attach($distinctTeam);
 
     Livewire::actingAs($viewer)
         ->test(NotesIndex::class)
         ->set('broader', true)
-        ->assertSee('platform-squad');
+        ->assertSeeInOrder(['platform-squad', 'Badged Author']);
 });
 
 it('scopes browsing to the viewer\'s teams with the same toggle to show all teams', function () {

@@ -40,11 +40,9 @@
                     <flux:table.cell class="flex items-center gap-3">
                         <flux:badge color="zinc" size="sm" inset="top bottom">#{{ $note->code }}</flux:badge>
                         <flux:link :href="route('notes.show', $note)" wire:navigate>{{ $note->title }}</flux:link>
-                        @if ($showTeamBadges)
-                            @foreach ($note->teams as $team)
-                                <flux:badge color="sky" size="sm" inset="top bottom">{{ $team->name }}</flux:badge>
-                            @endforeach
-                        @endif
+                        @foreach ($note->teams as $team)
+                            <flux:badge color="sky" size="sm" inset="top bottom">{{ $team->name }}</flux:badge>
+                        @endforeach
                     </flux:table.cell>
                     <flux:table.cell>{{ $note->user->full_name }}</flux:table.cell>
                     <flux:table.cell>{{ $note->updated_at->diffForHumans() }}</flux:table.cell>

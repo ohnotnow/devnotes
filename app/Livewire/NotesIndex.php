@@ -41,8 +41,7 @@ class NotesIndex extends Component
         return view('livewire.notes-index', [
             'notes' => $this->search
                 ? Note::searchScoped(auth()->user(), $this->search, $broader)->paginate(20)
-                : Note::with(['user', 'teams'])->when(! $broader, fn ($query) => $query->inTeamsOf(auth()->user()))->latest()->paginate(20),
-            'showTeamBadges' => (bool) $this->search || $broader,
+                : Note::with(['user', 'teams'])->when(! $broader, fn ($query) => $query->inTeamsOf(auth()->user()))->orderByDesc('updated_at')->orderByDesc('id')->paginate(20),
         ]);
     }
 }
