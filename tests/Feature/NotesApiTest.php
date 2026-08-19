@@ -57,6 +57,10 @@ it('scopes search and the list to the token user\'s teams and widens with broade
     $browsingBroader = $this->getJson('/api/v1/notes?broader=1');
     $browsingBroader->assertSuccessful();
     expect(collect($browsingBroader->json('data'))->pluck('code')->all())->toEqualCanonicalizing([$developerNote->code, $sysadminNote->code, $teamlessNote->code]);
+
+    Sanctum::actingAs(User::factory()->create());
+    $noTeamUserBrowsing = $this->getJson('/api/v1/notes');
+    expect(collect($noTeamUserBrowsing->json('data'))->pluck('code')->all())->toEqualCanonicalizing([$developerNote->code, $sysadminNote->code, $teamlessNote->code]);
 });
 
 it('shows a single note as raw markdown', function () {
