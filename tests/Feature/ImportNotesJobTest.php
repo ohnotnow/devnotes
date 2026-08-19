@@ -167,17 +167,16 @@ it('round-trips the golden master byte-exactly through import and export', funct
 });
 
 it('imports live notes findable in search and trashed ones not', function () {
-    // Under the test-pinned collection driver (and the shipped database driver)
-    // this is really pinning that deleted_at came across - those engines query
-    // the live table, so the job's withoutSyncingToSearch guard is unexercisable
-    // here. The guard exists for the meilisearch opt-in (devnotes-gbHJd.6.2).
+    // Search queries the live table, so this is really pinning that
+    // deleted_at came across in the import.
     Storage::fake('local');
     Storage::disk('local')->put('imports/export.json', file_get_contents(base_path('tests/fixtures/export-v1.json')));
 
     (new ImportNotes('local', 'imports/export.json'))->handle();
 
-    expect(Note::search('teamless')->get()->pluck('code')->all())->toBe(['aq2b3']);
-    expect(Note::search('soft-deleted')->get())->toBeEmpty();
+    $searcher = User::factory()->create();
+    expect(Note::searchScoped($searcher, 'teamless')->get()->pluck('code')->all())->toBe(['aq2b3']);
+    expect(Note::searchScoped($searcher, 'soft-deleted')->get())->toBeEmpty();
 });
 
 it('deletes its stored working copy on success and on failure', function () {

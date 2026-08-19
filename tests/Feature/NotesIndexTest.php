@@ -20,6 +20,18 @@ it('filters notes by search term across title and body', function () {
         ->assertDontSee('Livewire modal focus gotcha');
 });
 
+it('matches every search word as a partial, in any order', function () {
+    $user = User::factory()->create();
+    Note::factory()->create(['title' => 'Updating pivot tables', 'body' => 'Use the pivot methods on the relationship.']);
+    Note::factory()->create(['title' => 'Unrelated tip', 'body' => 'Nothing about that topic here.']);
+
+    Livewire::actingAs($user)
+        ->test(NotesIndex::class)
+        ->set('search', 'pivot updat')
+        ->assertSee('Updating pivot tables')
+        ->assertDontSee('Unrelated tip');
+});
+
 it('keeps trashed notes out of the index and search results', function () {
     $user = User::factory()->create();
     Note::factory()->create(['title' => 'A live postgres gotcha']);

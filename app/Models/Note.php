@@ -9,6 +9,7 @@ use Database\Factories\NoteFactory;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Casts\Attribute;
+use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
@@ -17,9 +18,6 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\SoftDeletes;
 use Illuminate\Support\HtmlString;
 use Illuminate\Support\Str;
-use Laravel\Scout\Attributes\SearchUsingFullText;
-use Laravel\Scout\Builder as ScoutBuilder;
-use Laravel\Scout\Searchable;
 use League\CommonMark\Environment\Environment;
 use League\CommonMark\Extension\CommonMark\CommonMarkCoreExtension;
 use League\CommonMark\Extension\GithubFlavoredMarkdownExtension;
@@ -32,7 +30,7 @@ use RuntimeException;
 class Note extends Model
 {
     /** @use HasFactory<NoteFactory> */
-    use HasFactory, Searchable, SoftDeletes;
+    use HasFactory, SoftDeletes;
 
     /**
      * Encoding for export downloads, matching tests/fixtures/export-v1.json
@@ -82,18 +80,6 @@ class Note extends Model
         static::restored(fn (Note $note) => $note->recordActivity(ActivityAction::Restored));
     }
 
-    /**
-     * @return array<string, string>
-     */
-    #[SearchUsingFullText(['title', 'body'])]
-    public function toSearchableArray(): array
-    {
-        return [
-            'title' => $this->title,
-            'body' => $this->body,
-        ];
-    }
-
     /** @return BelongsTo<User, $this> */
     public function user(): BelongsTo
     {
@@ -138,25 +124,66 @@ class Note extends Model
 
     /**
      * Search notes as the given user sees them (see scopeInTeamsOf), or
-     * everything when broader. Eager loads live here because Scout's
-     * Builder::query() replaces its callback - callers must never chain their
-     * own ->query() or they silently discard the team scoping.
+     * everything when broader. Every search word must appear in the title
+     * or body, in any order, matched as a partial ('liber' finds 'libero').
+     * Most recently updated first.
      *
-     * @return ScoutBuilder<static>
+     * @return Builder<static>
      */
-    public static function searchScoped(User $user, string $search, bool $broader = false): ScoutBuilder
+    public static function searchScoped(User $user, string $search, bool $broader = false): Builder
     {
-        if ($broader) {
-            return static::search($search)
-                ->orderBy('updated_at', 'desc')
-                ->orderBy('id', 'desc')
-                ->query(fn ($query) => $query->with(['user', 'teams']));
+        $query = static::with(['user', 'teams'])
+            ->when(! $broader, fn ($query) => $query->inTeamsOf($user))
+            ->orderByDesc('updated_at')
+            ->orderByDesc('id');
+
+        foreach (Str::of($search)->squish()->explode(' ')->filter() as $word) {
+            $query->where(fn ($query) => $query
+                ->whereLike('title', "%{$word}%")
+                ->orWhereLike('body', "%{$word}%"));
         }
 
-        return static::search($search)
-            ->orderBy('updated_at', 'desc')
-            ->orderBy('id', 'desc')
-            ->query(fn ($query) => $query->with(['user', 'teams'])->inTeamsOf($user));
+        return $query;
+    }
+
+    /**
+     * The notes sharing the most meaningful words with the given title, as
+     * the user sees the pot (see scopeInTeamsOf) - the "did you search
+     * first?" nudge behind add-note. Words under four characters are too
+     * common to signal similarity, so they are skipped.
+     *
+     * @return Collection<int, static>
+     */
+    public static function similarTo(User $user, string $title): Collection
+    {
+        $words = Str::of($title)->lower()->squish()->explode(' ')
+            ->map(fn (string $word) => trim($word, '.,:;!?()[]"\''))
+            ->filter(fn (string $word) => Str::length($word) >= 4)
+            ->unique()
+            ->values();
+
+        if ($words->isEmpty()) {
+            return new Collection;
+        }
+
+        $candidates = static::query()
+            ->inTeamsOf($user)
+            ->where(function ($query) use ($words) {
+                foreach ($words as $word) {
+                    $query->orWhere(fn ($query) => $query
+                        ->whereLike('title', "%{$word}%")
+                        ->orWhereLike('body', "%{$word}%"));
+                }
+            })
+            ->orderByDesc('updated_at')
+            ->get();
+
+        return $candidates
+            ->sortByDesc(fn (Note $note) => $words->filter(
+                fn (string $word) => Str::contains($note->title.' '.$note->body, $word, ignoreCase: true)
+            )->count())
+            ->take(4)
+            ->values();
     }
 
     /**
@@ -210,8 +237,8 @@ class Note extends Model
     /**
      * A deliberate full read of the note, from any surface. Guarded twice:
      * withoutTimestamps because updated_at drives the session-start digest and
-     * a read must never resurface a note there; quiet because Note is
-     * Scout-searchable and a plain increment would queue a re-index per read.
+     * a read must never resurface a note there; quiet because a plain
+     * increment fires the updated event and would log an Edited activity.
      */
     public function incrementReadCount(): void
     {

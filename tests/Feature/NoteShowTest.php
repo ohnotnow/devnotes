@@ -61,7 +61,7 @@ it('restores exactly the trashed note and it reappears in search', function () {
     $noteToStayTrashed = Note::factory()->create();
     $noteToRestore->delete();
     $noteToStayTrashed->delete();
-    expect(Note::search('Restorable gotcha')->get())->toBeEmpty();
+    expect(Note::searchScoped($user, 'Restorable gotcha')->get())->toBeEmpty();
 
     Livewire::actingAs($user)
         ->test(NoteShow::class, ['note' => Note::withTrashed()->find($noteToRestore->id)])
@@ -69,7 +69,7 @@ it('restores exactly the trashed note and it reappears in search', function () {
 
     expect(Note::find($noteToRestore->id)->deleted_at)->toBeNull();
     expect(Note::withTrashed()->find($noteToStayTrashed->id)->trashed())->toBeTrue();
-    expect(Note::search('Restorable gotcha')->get()->pluck('id')->all())->toContain($noteToRestore->id);
+    expect(Note::searchScoped($user, 'Restorable gotcha')->get()->pluck('id')->all())->toContain($noteToRestore->id);
 });
 
 it('describes deletion as removal from discovery, not dangling references', function () {

@@ -12,7 +12,7 @@ use Laravel\Mcp\Response;
 use Laravel\Mcp\Server\Attributes\Description;
 use Laravel\Mcp\Server\Tool;
 
-#[Description('Search the team\'s devnotes for gotchas, fixes, and lessons learned. Word-based full-text search: multi-word queries match on words in any order, best matches first - no need for exact phrases. Results are scoped to your teams by default; pass broader: true to search every team\'s notes. Returns code, title, and a short snippet per match; use get-note with a code for the full note.')]
+#[Description('Search the team\'s devnotes for gotchas, fixes, and lessons learned. Word search: every word must appear in the note\'s title or body, in any order, and partial words match (\'liber\' finds \'libero\'). Most recently updated first. Results are scoped to your teams by default; pass broader: true to search every team\'s notes. Returns code, title, and a short snippet per match; use get-note with a code for the full note.')]
 class SearchNotes extends Tool
 {
     /**

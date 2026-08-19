@@ -136,23 +136,19 @@ class ImportNotes implements ShouldQueue
     {
         $owner = $this->resolveOwner($exportedNote['author']);
 
-        Note::withoutSyncingToSearch(function () use ($note, $exportedNote, $owner): void {
-            $note->timestamps = false;
-            $note->forceFill([
-                'title' => $exportedNote['title'],
-                'body' => $exportedNote['body'],
-                'user_id' => $owner->id,
-                'created_at' => $exportedNote['created_at'],
-                'updated_at' => $exportedNote['updated_at'],
-                'deleted_at' => $exportedNote['deleted_at'],
-                'read_count' => $exportedNote['read_count'] ?? 0,
-                'last_read_at' => $exportedNote['last_read_at'] ?? null,
-            ])->save();
+        $note->timestamps = false;
+        $note->forceFill([
+            'title' => $exportedNote['title'],
+            'body' => $exportedNote['body'],
+            'user_id' => $owner->id,
+            'created_at' => $exportedNote['created_at'],
+            'updated_at' => $exportedNote['updated_at'],
+            'deleted_at' => $exportedNote['deleted_at'],
+            'read_count' => $exportedNote['read_count'] ?? 0,
+            'last_read_at' => $exportedNote['last_read_at'] ?? null,
+        ])->save();
 
-            $note->teams()->sync($this->resolveTeamIds($exportedNote['teams']));
-        });
-
-        $note->trashed() ? $note->unsearchable() : $note->searchable();
+        $note->teams()->sync($this->resolveTeamIds($exportedNote['teams']));
     }
 
     /**
@@ -195,31 +191,23 @@ class ImportNotes implements ShouldQueue
         // lets the creating hook mint a fresh one, reported in `recoded`.
         $codeIsTaken = Note::withTrashed()->where('code', $exportedNote['code'])->exists();
 
-        $note = Note::withoutSyncingToSearch(function () use ($exportedNote, $owner, $codeIsTaken): Note {
-            $note = new Note;
-            $note->timestamps = false;
-            $note->forceFill([
-                'ulid' => $exportedNote['ulid'],
-                'code' => $codeIsTaken ? null : $exportedNote['code'],
-                'title' => $exportedNote['title'],
-                'body' => $exportedNote['body'],
-                'user_id' => $owner->id,
-                'created_at' => $exportedNote['created_at'],
-                'updated_at' => $exportedNote['updated_at'],
-                'deleted_at' => $exportedNote['deleted_at'],
-                'read_count' => $exportedNote['read_count'] ?? 0,
-                'last_read_at' => $exportedNote['last_read_at'] ?? null,
-            ])->save();
-
-            return $note;
-        });
+        $note = new Note;
+        $note->timestamps = false;
+        $note->forceFill([
+            'ulid' => $exportedNote['ulid'],
+            'code' => $codeIsTaken ? null : $exportedNote['code'],
+            'title' => $exportedNote['title'],
+            'body' => $exportedNote['body'],
+            'user_id' => $owner->id,
+            'created_at' => $exportedNote['created_at'],
+            'updated_at' => $exportedNote['updated_at'],
+            'deleted_at' => $exportedNote['deleted_at'],
+            'read_count' => $exportedNote['read_count'] ?? 0,
+            'last_read_at' => $exportedNote['last_read_at'] ?? null,
+        ])->save();
 
         if ($codeIsTaken) {
             $this->report['recoded'][] = ['old' => $exportedNote['code'], 'new' => $note->code];
-        }
-
-        if (! $note->trashed()) {
-            $note->searchable();
         }
 
         return $note;
