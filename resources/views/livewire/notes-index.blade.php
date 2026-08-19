@@ -38,7 +38,7 @@
             @foreach ($notes as $note)
                 <flux:table.row wire:key="note-{{ $note->id }}">
                     <flux:table.cell class="flex items-center gap-3">
-                        <flux:badge color="zinc" size="sm" inset="top bottom">#{{ $note->code }}</flux:badge>
+                        <a href="{{ route('notes.show', $note) }}"><flux:badge color="zinc" size="sm" inset="top bottom">#{{ $note->code }}</flux:badge></a>
                         <flux:link :href="route('notes.show', $note)" wire:navigate>{{ $note->title }}</flux:link>
                         @foreach ($note->teams as $team)
                             <flux:badge :color="$team->colour()" size="sm" inset="top bottom">{{ $team->name }}</flux:badge>
