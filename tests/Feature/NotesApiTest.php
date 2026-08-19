@@ -39,6 +39,7 @@ it('scopes search and the list to the token user\'s teams and widens with broade
     $developerNote->teams()->attach($developers);
     $sysadminNote = Note::factory()->create(['title' => 'Docker daemon log rotation']);
     $sysadminNote->teams()->attach($sysadmins);
+    $teamlessNote = Note::factory()->create(['title' => 'Compose healthcheck gotcha']);
 
     $scoped = $this->getJson('/api/v1/notes?search=docker');
     $scoped->assertSuccessful();
@@ -51,12 +52,11 @@ it('scopes search and the list to the token user\'s teams and widens with broade
 
     $browsing = $this->getJson('/api/v1/notes');
     $browsing->assertSuccessful();
-    expect($browsing->json('data'))->toHaveCount(1);
-    expect($browsing->json('data.0.code'))->toBe($developerNote->code);
+    expect(collect($browsing->json('data'))->pluck('code')->all())->toEqualCanonicalizing([$developerNote->code, $teamlessNote->code]);
 
     $browsingBroader = $this->getJson('/api/v1/notes?broader=1');
     $browsingBroader->assertSuccessful();
-    expect(collect($browsingBroader->json('data'))->pluck('code')->all())->toEqualCanonicalizing([$developerNote->code, $sysadminNote->code]);
+    expect(collect($browsingBroader->json('data'))->pluck('code')->all())->toEqualCanonicalizing([$developerNote->code, $sysadminNote->code, $teamlessNote->code]);
 });
 
 it('shows a single note as raw markdown', function () {
