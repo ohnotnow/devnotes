@@ -46,7 +46,7 @@ The usual REST verbs work: list and search notes, fetch one, create, update (sen
 
 ## The MCP server
 
-The MCP endpoint lives at `/mcp` and authenticates with OAuth 2.1. The client discovers the OAuth endpoints, registers itself, and pops a browser where you approve it while signed in to devnotes.
+The MCP endpoint lives at `/mcp` and authenticates with OAuth 2.1. The client discovers the OAuth endpoints, registers itself, and pops a browser where you approve it while signed in to devnotes.  There is an associated very [short agent skill](claude/skills/devnotes/) you can tweak with your own cenventions, do's and dont's.
 
 ```sh
 claude mcp add --transport http devnotes https://your-devnotes-host/mcp
@@ -64,6 +64,9 @@ openssl rsa -in oauth-private.key -pubout -out oauth-public.key
 Put each file's full contents (BEGIN/END lines included) into your platform's secrets as `PASSPORT_PRIVATE_KEY` and `PASSPORT_PUBLIC_KEY`, then delete the files. Don't regenerate keys as part of your build - every new keypair logs out every connected MCP client.
 
 While you are developing, `config/mcp.php` allows any redirect domain; lock that down before putting the app anywhere public.
+
+**Note**: I strongly recommend enabling the MCP on a per-project basis rather than globally.  Having an agent create devnotes about your 'special interest' side-project could be... embarrassing.
+
 
 ## Search
 
