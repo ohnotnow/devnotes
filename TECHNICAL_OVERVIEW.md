@@ -11,7 +11,7 @@ A shared pot of dev-team gotchas kept as tiny markdown notes, served three ways 
 - PHP 8.4 / Laravel 13
 - Livewire 4 + Flux UI Pro 2 (licence required for `composer install`)
 - Sanctum (API tokens), Passport 13 (MCP OAuth), laravel/mcp 0.9
-- Scout for search (`database` or `meilisearch` driver)
+- Search is a plain per-word `LIKE` query on the notes table (no search engine)
 - Socialite + Keycloak for SSO, with a local login fallback
 - Pest 5, in-memory sqlite for tests
 
@@ -42,7 +42,7 @@ Models use PHP attribute style (`#[Fillable]`), not `$fillable` arrays. Every no
 
 ### Read tracking
 
-Notes carry `read_count` and `last_read_at`, bumped only by deliberate full reads: MCP `get-note`, the web note page (`NoteShow::mount()`, not `render()` - a Livewire round-trip must not count), and API `show`. Searches, listings, the digest, and the tidy screen's preview flyout never bump. The single bump path is `Note::incrementReadCount()`, guarded twice: `withoutTimestamps` because `updated_at` drives the session-start digest and a read must never resurface a note there, and the quiet increment because Note is Scout-searchable and a plain increment would queue a re-index per read. The counter is deliberately dumb - no per-user tracking, no de-duplication; it is a rough team-wide signal that informs the tidy screen and never acts (ADR devnotes-Lp8cB). The fields stay out of `NoteResource` and `ExportNoteResource`: heuristics are install-local, and the export golden master must stay byte-identical.
+Notes carry `read_count` and `last_read_at`, bumped only by deliberate full reads: MCP `get-note`, the web note page (`NoteShow::mount()`, not `render()` - a Livewire round-trip must not count), and API `show`. Searches, listings, the digest, and the tidy screen's preview flyout never bump. The single bump path is `Note::incrementReadCount()`, guarded twice: `withoutTimestamps` because `updated_at` drives the session-start digest and a read must never resurface a note there, and the quiet increment because a plain increment fires the updated event and would log an Edited activity per read. The counter is deliberately dumb - no per-user tracking, no de-duplication; it is a rough team-wide signal that informs the tidy screen and never acts (ADR devnotes-Lp8cB). The fields stay out of `NoteResource` and `ExportNoteResource`: heuristics are install-local, and the export golden master must stay byte-identical.
 
 The tidy screen (`/tidy`, TidyNotes) lists the signed-in user's notes least-loved first (`orderBy('read_count')->orderBy('last_read_at')` - the tie-break never lands on NULL because `last_read_at` is only NULL at `read_count` 0, so cross-database NULL-ordering differences never matter). Admins get an ApiTokens-style `showAll` toggle; regular users forcing the URL parameter still see only their own notes.
 
@@ -54,7 +54,7 @@ Deleting a note removes it from discovery (search, digest, listings, the tidy sc
 
 Design and rejected alternatives live in ant ADR devnotes-sXVTv. The whole feature is two pivots plus a filter:
 
-- `Note::searchScoped($user, $query, $broader)` is the single scoping implementation, used by the API, the MCP tool, and the web index. It shows notes sharing a subscribed team plus teamless notes; `broader` (or a user with no subscriptions) means the whole pot. Its query callback carries the eager loads - never chain `->query()` onto it, Scout's `Builder::query()` replaces the callback rather than composing, which silently drops the scoping.
+- `Note::searchScoped($user, $query, $broader)` is the single scoping implementation, used by the API, the MCP tool, and the web index. It shows notes sharing a subscribed team plus teamless notes; `broader` (or a user with no subscriptions) means the whole pot. It is a plain Eloquent builder: every search word must appear in the title or body (partial matches count, any order), ordered `updated_at` desc then `id` desc - the same ordering as the browse list (ADR devnotes-uqwCr).
 - `Note::assignTeams($ids)` attaches explicit teams or the author's `defaultNoteTeams` when given null - create paths only; update paths sync explicitly.
 - `User::syncTeamPreferences($readIds, $defaultIds)` reconciles the pivot from the two checkbox groups; a team in neither list loses its row.
 - Browsing, note show pages, and `#code` resolution are never scoped. Deleting a team cascades its pivot rows, so its notes join the whole pot - nothing is ever hidden.
@@ -135,8 +135,8 @@ API routes are name-prefixed `api.v1.*` because a bare `apiResource('notes')` st
 ## Testing
 
 - Pest 5, feature tests, in-memory sqlite via `RefreshDatabase`. No migrations or seeders needed first.
-- `phpunit.xml` pins `SCOUT_DRIVER`, `FILESYSTEM_DISK`, and all `SSO_*` keys because `.env` leaks into any test-env key it does not pin. If a test fails oddly on config, suspect a leak first.
-- Tests pin `SCOUT_DRIVER=collection` because sqlite cannot run the production full-text search (`SearchUsingFullText` on `Note` + the guarded full-text index migration). The collection engine filters in PHP, so the real `whereFullText` query path is only exercised by live verification on MySQL/Postgres.
+- `phpunit.xml` pins `FILESYSTEM_DISK` and all `SSO_*` keys because `.env` leaks into any test-env key it does not pin. If a test fails oddly on config, suspect a leak first.
+- Search is a plain Eloquent per-word `LIKE` query (ADR devnotes-uqwCr), so sqlite tests exercise the exact production query path - no search engine to stub.
 - House style: assert side-effects through Eloquent models, cover happy and sad paths together, one behaviour per test.
 - Run: `php artisan test --compact`
 

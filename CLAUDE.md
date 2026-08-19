@@ -11,7 +11,7 @@ A scrappy "wiki meets GitHub gists" for our small dev team: tiny markdown notes 
 
 ## House specifics for this repo
 
-- Local dev: lando at `https://devnotes.lndo.site`, login `admin2x` / `secret` (seeded). `lando mfs` (migrate:fresh + TestDataSeeder) is fine to run. Tests: `php artisan test --compact` - in-memory sqlite, no migrations needed; phpunit.xml pins SCOUT_DRIVER and the SSO_* keys because `.env` leaks into any key it doesn't pin.
+- Local dev: lando at `https://devnotes.lndo.site`, login `admin2x` / `secret` (seeded). `lando mfs` (migrate:fresh + TestDataSeeder) is fine to run. Tests: `php artisan test --compact` - in-memory sqlite, no migrations needed; phpunit.xml pins the SSO_* keys because `.env` leaks into any key it doesn't pin.
 - Models use `#[Fillable]` attributes (see `app/Models/User.php`), not `$fillable`.
 - Any new model whose rows travel through export/import needs a `ulid` column minted on creation (see `Note::booted()`) - the ulid is the cross-install identity that keeps re-imports idempotent. Codes/ids do not survive merging two pots; ulids do.
 - Flux UI everywhere; create/edit forms use `flux:modal variant="flyout"`. New screens need: `flux:heading level=`, `autofocus` in modals, aria-labels on switches - the a11y bar is real for us (.ac.uk).

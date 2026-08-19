@@ -70,9 +70,7 @@ While you are developing, `config/mcp.php` allows any redirect domain; lock that
 
 ## Search
 
-Search is [Laravel Scout](https://laravel.com/docs/scout). The example env is set up for meilisearch, but the `database` driver works fine for a small install with no extra moving parts, just set `SCOUT_DRIVER=database`.
-
-On MySQL, MariaDB, and Postgres the `database` driver uses a full-text index on titles and bodies, so a multi-word search matches on words in any order, best matches first - no need to guess an exact phrase. Quirks worth knowing: MySQL skips words shorter than three characters and common stopwords; Postgres requires every word to appear and stems them using its english language config.
+Search is a plain SQL `LIKE` query over titles and bodies - no search engine, no index, no extra moving parts. Every word in your search must appear somewhere in the note, in any order, and partial words match: `liber` finds "libero", `pivot updat` finds "Updating pivot tables". Results come back most recently updated first. At the size of pot this app is for, that's all it needs.
 
 ## Teams
 
