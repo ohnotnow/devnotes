@@ -105,15 +105,11 @@ class TestDataSeeder extends Seeder
 
     /**
      * A thousand filler notes so local browsing, search and pagination feel
-     * realistic. Local only - the seeder tests pin exact counts elsewhere.
-     * Runs before createActivities so every filler note gets a Created entry.
+     * realistic. Runs before createActivities so every filler note gets a
+     * Created entry.
      */
     private function createFillerNotes(User $adminUser, User $standardUser, Team $developers, Team $sysadmins): void
     {
-        if (! app()->environment('local')) {
-            return;
-        }
-
         Note::factory(1000)
             ->state(function () use ($adminUser, $standardUser) {
                 $createdAt = fake()->dateTimeBetween('-2 years');

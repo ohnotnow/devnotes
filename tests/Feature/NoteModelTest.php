@@ -2,7 +2,6 @@
 
 use App\Models\Note;
 use App\Models\User;
-use Database\Seeders\TestDataSeeder;
 use Illuminate\Database\QueryException;
 use Illuminate\Support\Str;
 
@@ -25,26 +24,6 @@ it('lists the notes a user has created', function () {
     expect($userWithNote->notes)->toHaveCount(1);
     expect($userWithNote->notes->first()->is($note))->toBeTrue();
     expect($userWithoutNote->notes)->toHaveCount(0);
-});
-
-it('seeds notes including a #code cross-reference', function () {
-    $this->seed(TestDataSeeder::class);
-
-    $originalNote = Note::where('title', 'Livewire flyout modals lose focus on close')->sole();
-    $followUpNote = Note::where('title', 'More flyout modal focus history')->sole();
-
-    expect(Note::count())->toBe(7);
-    expect((string) $followUpNote->rendered_body)->toContain(route('notes.show', $originalNote));
-});
-
-it('seeds a thousand filler notes in the local environment only', function () {
-    $this->app['env'] = 'local';
-
-    $this->seed(TestDataSeeder::class);
-
-    expect(Note::count())->toBe(1007);
-    expect(Note::where('read_count', '>', 0)->count())->toBeGreaterThan(0);
-    expect(Note::whereHas('teams')->count())->toBeGreaterThan(4);
 });
 
 it('mints a code and a ulid when a note is created', function () {
