@@ -36,7 +36,7 @@ it('previews an upload into an empty install: all new, nothing matched', functio
         ->assertSee('3 new notes')
         ->assertSee('2 authors')
         ->assertSee('2 teams')
-        ->assertDontSee('Already here');
+        ->assertDontSee('already here and unchanged');
 });
 
 it('queues the import on confirm and the notes appear when the job runs', function () {
@@ -75,7 +75,7 @@ it('shows drifted matches with a skip default and passes overwrite choices to th
         ->assertSee('Changed since the file was made')
         ->assertSee('Drifted local title')
         ->assertSee('How to install the puppet client on Rocky Linux')
-        ->assertSee('title')
+        ->assertSee('title, body, teams, author, timestamps')
         ->assertSet('decisions.01ARZ3NDEKTSV4RRFFQ69G5FA2', 'skip')
         ->set('decisions.01ARZ3NDEKTSV4RRFFQ69G5FA2', 'overwrite')
         ->call('import')
@@ -118,7 +118,7 @@ it('shows new notes whose code is taken as re-mint warnings', function () {
         ->set('file', UploadedFile::fake()->createWithContent('export.json', file_get_contents(base_path('tests/fixtures/export-v1.json'))))
         ->assertSee('Codes that will be re-minted')
         ->assertSee('#abq4x')
-        ->assertDontSee('Already here');
+        ->assertDontSee('already here and unchanged');
 });
 
 it('passes the acting admin as fallback owner when author creation is switched off', function () {
@@ -152,6 +152,43 @@ it('rejects a malformed file with an error and stores and queues nothing', funct
         ->test(ImportNotes::class)
         ->set('file', UploadedFile::fake()->createWithContent('export.json', 'not even json {'))
         ->assertHasErrors('file');
+
+    expect(Storage::disk(config('filesystems.default'))->allFiles('imports'))->toBeEmpty();
+    Queue::assertNothingPushed();
+});
+
+it('clears the chosen file and its preview when the admin removes it', function () {
+    Storage::fake(config('filesystems.default'));
+    Queue::fake();
+    $admin = User::factory()->admin()->create();
+
+    Livewire::actingAs($admin)
+        ->test(ImportNotes::class)
+        ->set('file', UploadedFile::fake()->createWithContent('export.json', file_get_contents(base_path('tests/fixtures/export-v1.json'))))
+        ->assertSee('3 new notes')
+        ->call('removeFile')
+        ->assertSet('file', null)
+        ->assertSet('preview', [])
+        ->assertSet('decisions', [])
+        ->assertDontSee('3 new notes');
+
+    expect(Note::withTrashed()->count())->toBe(0);
+    Queue::assertNothingPushed();
+});
+
+it('rejects a version-1 file whose notes are truncated, rather than blowing up', function () {
+    Storage::fake(config('filesystems.default'));
+    Queue::fake();
+    $admin = User::factory()->admin()->create();
+    $truncated = json_encode(['version' => 1, 'notes' => [['ulid' => '01ARZ3NDEKTSV4RRFFQ69G5FA1']]]);
+
+    Livewire::actingAs($admin)
+        ->test(ImportNotes::class)
+        ->set('file', UploadedFile::fake()->createWithContent('export.json', $truncated))
+        ->assertHasErrors('file')
+        ->assertSee('That does not look like a devnotes export file')
+        ->assertSet('preview', [])
+        ->assertDontSee('Run import');
 
     expect(Storage::disk(config('filesystems.default'))->allFiles('imports'))->toBeEmpty();
     Queue::assertNothingPushed();

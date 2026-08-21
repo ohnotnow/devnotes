@@ -39,7 +39,7 @@ class ImportNotes extends Component
 
         $payload = json_decode($this->file->get(), true);
 
-        if (($payload['version'] ?? null) !== 1 || ! is_array($payload['notes'] ?? null)) {
+        if (! ImportNotesJob::describesNotes($payload)) {
             $this->reset('file');
             $this->addError('file', 'That does not look like a devnotes export file.');
 

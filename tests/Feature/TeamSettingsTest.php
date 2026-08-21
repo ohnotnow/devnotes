@@ -53,6 +53,12 @@ it('rejects a team id that does not exist without saving anything', function () 
         ->call('save')
         ->assertHasErrors(['subscribedTeamIds.0']);
 
+    Livewire::actingAs($member)
+        ->test(TeamSettings::class)
+        ->set('defaultTeamIds', [999])
+        ->call('save')
+        ->assertHasErrors(['defaultTeamIds.0']);
+
     expect($member->refresh()->teams()->pluck('teams.id')->all())->toBe([$developers->id]);
 });
 

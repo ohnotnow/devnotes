@@ -195,3 +195,83 @@ it('deletes its stored working copy on success and on failure', function () {
     Storage::disk('local')->assertMissing('imports/bad.json');
     expect(Note::withTrashed()->where('code', 'never')->exists())->toBeFalse();
 });
+
+it('gives a skipped note the history it has never seen', function () {
+    Storage::fake('local');
+    $payload = json_decode(file_get_contents(base_path('tests/fixtures/export-v1.json')), true);
+    $withoutHistory = $payload;
+    $withoutHistory['notes'] = array_map(function (array $note): array {
+        unset($note['activities']);
+
+        return $note;
+    }, $withoutHistory['notes']);
+    Storage::disk('local')->put('imports/no-history.json', json_encode($withoutHistory));
+
+    (new ImportNotes('local', 'imports/no-history.json'))->handle();
+    expect(Activity::count())->toBe(0);
+
+    // Same notes arrive again, this time carrying their history. Every note is
+    // skipped, but the activity rows are new here and must land.
+    Storage::disk('local')->put('imports/with-history.json', json_encode($payload));
+    $report = (new ImportNotes('local', 'imports/with-history.json'))->handle();
+
+    expect($report['imported'])->toBe(0);
+    expect($report['skipped'])->toBe(['aq2b3', 'abq4x', 'zde77']);
+    expect(Activity::count())->toBe(2);
+    expect(Note::where('code', 'abq4x')->sole()->activities)->toHaveCount(2);
+    expect(Note::withTrashed()->count())->toBe(3);
+});
+
+it('matches on the ulid even after the local code was re-minted', function () {
+    Storage::fake('local');
+    $fixture = file_get_contents(base_path('tests/fixtures/export-v1.json'));
+    // A local stranger already holds abq4x, so the file's note arrives re-coded.
+    Note::factory()->create(['code' => 'abq4x', 'title' => 'A local stranger']);
+    Storage::disk('local')->put('imports/first.json', $fixture);
+    $firstReport = (new ImportNotes('local', 'imports/first.json'))->handle();
+    $recodedNote = Note::where('ulid', '01ARZ3NDEKTSV4RRFFQ69G5FA2')->sole();
+    expect($recodedNote->code)->not->toBe('abq4x');
+    expect($firstReport['recoded'][0]['new'])->toBe($recodedNote->code);
+
+    // The same file again: identity is the ulid, so this is a skip, not a
+    // second import, even though the codes no longer agree.
+    Storage::disk('local')->put('imports/second.json', $fixture);
+    $secondReport = (new ImportNotes('local', 'imports/second.json'))->handle();
+
+    expect($secondReport['imported'])->toBe(0);
+    expect($secondReport['recoded'])->toBe([]);
+    expect(Note::withTrashed()->count())->toBe(4);
+    expect(Note::where('ulid', '01ARZ3NDEKTSV4RRFFQ69G5FA2')->sole()->code)->toBe($recodedNote->code);
+});
+
+it('restores a locally deleted note when the file says it is live', function () {
+    Storage::fake('local');
+    $fixture = file_get_contents(base_path('tests/fixtures/export-v1.json'));
+    Storage::disk('local')->put('imports/first.json', $fixture);
+    (new ImportNotes('local', 'imports/first.json'))->handle();
+    Note::where('code', 'abq4x')->sole()->delete();
+    expect(Note::where('code', 'abq4x')->exists())->toBeFalse();
+
+    Storage::disk('local')->put('imports/second.json', $fixture);
+    (new ImportNotes('local', 'imports/second.json', overwriteUlids: ['01ARZ3NDEKTSV4RRFFQ69G5FA2']))->handle();
+
+    expect(Note::where('code', 'abq4x')->sole()->deleted_at)->toBeNull();
+    // The file's own deleted note stays deleted - only the overwritten one moved.
+    expect(Note::withTrashed()->where('code', 'zde77')->sole()->deleted_at)->not->toBeNull();
+    expect(Note::withTrashed()->count())->toBe(3);
+});
+
+it('refuses a version-1 file whose notes are missing the fields it reads', function () {
+    Storage::fake('local');
+    Storage::disk('local')->put('imports/truncated.json', json_encode([
+        'version' => 1,
+        'notes' => [['ulid' => '01ARZ3NDEKTSV4RRFFQ69G5FA9', 'code' => 'never', 'title' => 'Should not land']],
+    ]));
+
+    expect(fn () => (new ImportNotes('local', 'imports/truncated.json'))->handle())
+        ->toThrow(RuntimeException::class, 'Unsupported export file');
+
+    Storage::disk('local')->assertMissing('imports/truncated.json');
+    expect(Note::withTrashed()->count())->toBe(0);
+    expect(User::count())->toBe(0);
+});

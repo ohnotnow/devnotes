@@ -22,6 +22,12 @@ class ImportNotes implements ShouldQueue
      */
     public int $tries = 1;
 
+    /** Every field the preview and the import read without a fallback. */
+    public const REQUIRED_NOTE_KEYS = ['ulid', 'code', 'title', 'body', 'author', 'teams', 'created_at', 'updated_at', 'deleted_at'];
+
+    /** Every field the author of an imported note must carry. */
+    public const REQUIRED_AUTHOR_KEYS = ['email', 'forenames', 'surname', 'is_admin', 'is_staff'];
+
     /** @var array{imported: int, skipped: array<string>, overwritten: array<string>, recoded: array<array{old: string, new: string}>, users_created: int, teams_created: int} */
     private array $report = ['imported' => 0, 'skipped' => [], 'overwritten' => [], 'recoded' => [], 'users_created' => 0, 'teams_created' => 0];
 
@@ -69,7 +75,28 @@ class ImportNotes implements ShouldQueue
             throw new RuntimeException('Unsupported export version');
         }
 
+        if (! static::describesNotes($payload)) {
+            throw new RuntimeException('Unsupported export file');
+        }
+
         return $payload['notes'];
+    }
+
+    /**
+     * A truncated or half-written export is valid JSON and may still say
+     * version 1, so callers need to know before they read a note's fields.
+     */
+    public static function describesNotes(mixed $payload): bool
+    {
+        if (! is_array($payload) || ($payload['version'] ?? null) !== 1 || ! is_array($payload['notes'] ?? null)) {
+            return false;
+        }
+
+        return collect($payload['notes'])->every(fn (mixed $note): bool => is_array($note)
+            && array_diff(self::REQUIRED_NOTE_KEYS, array_keys($note)) === []
+            && is_array($note['author'])
+            && array_diff(self::REQUIRED_AUTHOR_KEYS, array_keys($note['author'])) === []
+            && is_array($note['teams']));
     }
 
     /**

@@ -3,6 +3,7 @@
 use App\Models\OAuthUser;
 use App\Models\User;
 use Illuminate\Support\Facades\Config;
+use Laravel\Passport\Client;
 use Laravel\Passport\Passport;
 use Laravel\Sanctum\Sanctum;
 
@@ -59,4 +60,11 @@ it('rate limits oauth client registration to 10 per minute per ip', function () 
     }
 
     $this->postJson('/oauth/register', $registration)->assertStatus(429);
+    // The throttle has to prevent the write, not merely report a 429 after it.
+    expect(Client::count())->toBe(10);
+
+    // A different caller is unaffected - the limit is per ip.
+    $this->withServerVariables(['REMOTE_ADDR' => '198.51.100.7'])
+        ->postJson('/oauth/register', $registration)->assertCreated();
+    expect(Client::count())->toBe(11);
 });

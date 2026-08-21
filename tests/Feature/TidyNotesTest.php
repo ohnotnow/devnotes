@@ -50,11 +50,13 @@ it('never shows other peoples notes or the show-all switch to a regular user', f
     $regularUser = User::factory()->create();
     $otherUser = User::factory()->create();
     Note::factory()->create(['user_id' => $otherUser->id, 'title' => 'Someone elses gotcha']);
+    Note::factory()->create(['user_id' => $regularUser->id, 'title' => 'My own gotcha']);
 
     Livewire::actingAs($regularUser)
         ->test(TidyNotes::class)
         ->assertDontSee('Show all notes')
         ->set('showAll', true)
+        ->assertSee('My own gotcha')
         ->assertDontSee('Someone elses gotcha');
 });
 
@@ -105,4 +107,18 @@ it('soft-deletes exactly the targeted note from the tidy screen', function () {
     expect(Note::find($noteToDelete->id))->toBeNull();
     expect(Note::withTrashed()->find($noteToDelete->id))->not->toBeNull();
     expect(Note::find($noteToKeep->id))->not->toBeNull();
+});
+
+it('returns an admin to the first page when show-all is switched on', function () {
+    $admin = User::factory()->admin()->create();
+    $otherUser = User::factory()->create();
+    Note::factory()->count(25)->create(['user_id' => $admin->id, 'read_count' => 5]);
+    Note::factory()->create(['user_id' => $otherUser->id, 'title' => 'Least read of the lot', 'read_count' => 0]);
+
+    Livewire::actingAs($admin)
+        ->test(TidyNotes::class)
+        ->call('setPage', 2)
+        ->assertDontSee('Least read of the lot')
+        ->set('showAll', true)
+        ->assertSee('Least read of the lot');
 });

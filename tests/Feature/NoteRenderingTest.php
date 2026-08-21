@@ -12,6 +12,16 @@ it('escapes raw html in the body', function () {
     expect($html)->toContain('&lt;script');
 });
 
+it('strips unsafe link schemes from markdown links', function () {
+    $note = Note::factory()->make(['body' => 'Do not [click me](javascript:alert(1)) or [this either](data:text/html;base64,PHN2Zz4=).']);
+
+    $html = (string) $note->rendered_body;
+
+    expect($html)->not->toContain('javascript:');
+    expect($html)->not->toContain('data:text/html');
+    expect($html)->toContain('click me');
+});
+
 it('links #code cross-references to the referenced note', function () {
     $referencedNote = Note::factory()->create(['code' => 'abq4x']);
     $note = Note::factory()->make(['body' => 'For the original write-up see #abq4x and move on.']);

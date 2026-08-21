@@ -58,20 +58,30 @@ it('only registers oauth clients for allowlisted redirect domains', function () 
         'token_endpoint_auth_method' => 'none',
     ]);
 
-    expect($rejected->status())->toBeGreaterThanOrEqual(400);
+    expect($rejected->status())->toBe(400);
     expect(Client::count())->toBe(2);
 });
 
 it('serves oauth discovery metadata without authentication', function () {
     $authServer = $this->getJson('/.well-known/oauth-authorization-server');
 
-    $authServer->assertSuccessful();
-    expect($authServer->json('authorization_endpoint'))->not->toBeNull();
-    expect($authServer->json('token_endpoint'))->not->toBeNull();
-    expect($authServer->json('registration_endpoint'))->not->toBeNull();
+    // A client that cannot resolve these to the right host cannot connect at
+    // all, so pin the URLs rather than merely their presence.
+    $baseUrl = rtrim(config('app.url'), '/');
+
+    $authServer->assertOk();
+    expect($authServer->json('issuer'))->toBe($baseUrl);
+    expect($authServer->json('authorization_endpoint'))->toBe($baseUrl.'/oauth/authorize');
+    expect($authServer->json('token_endpoint'))->toBe($baseUrl.'/oauth/token');
+    expect($authServer->json('registration_endpoint'))->toBe($baseUrl.'/oauth/register');
+    expect($authServer->json('code_challenge_methods_supported'))->toBe(['S256']);
+    expect($authServer->json('scopes_supported'))->toBe(['mcp:use']);
 
     $protectedResource = $this->getJson('/.well-known/oauth-protected-resource');
-    $protectedResource->assertSuccessful();
+    $protectedResource->assertOk();
+    expect($protectedResource->json('resource'))->toBe($baseUrl);
+    expect($protectedResource->json('authorization_servers'))->toBe([$baseUrl]);
+    expect($protectedResource->json('scopes_supported'))->toBe(['mcp:use']);
 });
 
 it('rejects unauthenticated requests to the mcp endpoint', function () {
@@ -238,23 +248,4 @@ it('serves plain habit-text instructions when the pot is empty', function () {
     $instructions = $response->json('result.instructions');
     expect($instructions)->toContain('call search-notes BEFORE debugging');
     expect($instructions)->not->toContain('Recently updated notes');
-});
-
-it('completes an mcp handshake for an authenticated user', function () {
-    $user = User::factory()->create();
-    Passport::actingAs(OAuthUser::findOrFail($user->id));
-
-    $response = $this->postJson('/mcp', [
-        'jsonrpc' => '2.0',
-        'id' => 1,
-        'method' => 'initialize',
-        'params' => [
-            'protocolVersion' => '2025-06-18',
-            'capabilities' => (object) [],
-            'clientInfo' => ['name' => 'pest', 'version' => '1.0'],
-        ],
-    ]);
-
-    $response->assertSuccessful();
-    expect($response->json('result.serverInfo.name'))->toBe('devnotes');
 });

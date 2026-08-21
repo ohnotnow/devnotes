@@ -1,5 +1,7 @@
 <?php
 
+use App\Enums\ActivityAction;
+use App\Models\Activity;
 use App\Models\Note;
 use App\Models\Team;
 use App\Models\User;
@@ -13,7 +15,7 @@ it('lists notes newest-first in the documented envelope and filters via search',
 
     $response = $this->getJson('/api/v1/notes');
 
-    $response->assertSuccessful();
+    $response->assertOk();
     $response->assertJsonStructure([
         'data' => ['*' => ['code', 'title', 'body', 'author', 'created_at', 'updated_at']],
         'links' => ['first', 'last', 'prev', 'next'],
@@ -42,20 +44,20 @@ it('scopes search and the list to the token user\'s teams and widens with broade
     $teamlessNote = Note::factory()->create(['title' => 'Compose healthcheck gotcha']);
 
     $scoped = $this->getJson('/api/v1/notes?search=docker');
-    $scoped->assertSuccessful();
+    $scoped->assertOk();
     expect($scoped->json('data'))->toHaveCount(1);
     expect($scoped->json('data.0.code'))->toBe($developerNote->code);
 
     $broader = $this->getJson('/api/v1/notes?search=docker&broader=1');
-    $broader->assertSuccessful();
+    $broader->assertOk();
     expect(collect($broader->json('data'))->pluck('code')->all())->toEqualCanonicalizing([$developerNote->code, $sysadminNote->code]);
 
     $browsing = $this->getJson('/api/v1/notes');
-    $browsing->assertSuccessful();
+    $browsing->assertOk();
     expect(collect($browsing->json('data'))->pluck('code')->all())->toEqualCanonicalizing([$developerNote->code, $teamlessNote->code]);
 
     $browsingBroader = $this->getJson('/api/v1/notes?broader=1');
-    $browsingBroader->assertSuccessful();
+    $browsingBroader->assertOk();
     expect(collect($browsingBroader->json('data'))->pluck('code')->all())->toEqualCanonicalizing([$developerNote->code, $sysadminNote->code, $teamlessNote->code]);
 
     Sanctum::actingAs(User::factory()->create());
@@ -69,7 +71,7 @@ it('shows a single note as raw markdown', function () {
 
     $response = $this->getJson("/api/v1/notes/{$note->code}");
 
-    $response->assertSuccessful();
+    $response->assertOk();
     expect($response->json('data.body'))->toBe("Some **bold** advice.\n\nSee #12 too.");
     expect($response->json('data.code'))->toBe($note->code);
 });
@@ -78,7 +80,7 @@ it('bumps read tracking when a note is fetched via the api', function () {
     Sanctum::actingAs(User::factory()->create());
     $note = Note::factory()->create();
 
-    $this->getJson("/api/v1/notes/{$note->code}")->assertSuccessful();
+    $this->getJson("/api/v1/notes/{$note->code}")->assertOk();
 
     $note->refresh();
     expect($note->read_count)->toBe(1);
@@ -142,7 +144,7 @@ it('lets any token holder update any note without stealing authorship', function
 
     $response = $this->putJson("/api/v1/notes/{$note->code}", ['title' => 'Old title, fixed', 'body' => $note->body]);
 
-    $response->assertSuccessful();
+    $response->assertOk();
     $note->refresh();
     expect($note->title)->toBe('Old title, fixed');
     expect($note->user->is($author))->toBeTrue();
@@ -162,15 +164,15 @@ it('syncs teams on update only when team_ids is sent', function () {
     $note->teams()->attach($developers);
 
     $withoutTeams = $this->putJson("/api/v1/notes/{$note->code}", ['title' => 'Updated', 'body' => $note->body]);
-    $withoutTeams->assertSuccessful();
+    $withoutTeams->assertOk();
     expect($note->teams()->pluck('teams.id')->all())->toBe([$developers->id]);
 
     $withTeams = $this->putJson("/api/v1/notes/{$note->code}", ['title' => 'Updated again', 'body' => $note->body, 'team_ids' => [$sysadmins->id]]);
-    $withTeams->assertSuccessful();
+    $withTeams->assertOk();
     expect($note->teams()->pluck('teams.id')->all())->toBe([$sysadmins->id]);
 
     $cleared = $this->putJson("/api/v1/notes/{$note->code}", ['title' => 'Cleared', 'body' => $note->body, 'team_ids' => []]);
-    $cleared->assertSuccessful();
+    $cleared->assertOk();
     expect($note->teams()->count())->toBe(0);
 });
 
@@ -181,7 +183,7 @@ it('shows a trashed note via the api with deleted_at set', function () {
     $liveNote = Note::factory()->create();
 
     $trashedResponse = $this->getJson("/api/v1/notes/{$trashedNote->code}");
-    $trashedResponse->assertSuccessful();
+    $trashedResponse->assertOk();
     expect($trashedResponse->json('data.deleted_at'))->not->toBeNull();
 
     expect($this->getJson("/api/v1/notes/{$liveNote->code}")->json('data.deleted_at'))->toBeNull();
@@ -201,7 +203,7 @@ it('soft-deletes exactly the targeted note', function () {
 
     // Deletion removes a note from discovery, not citation: show keeps working
     // (with deleted_at set), while update and destroy refuse trashed notes.
-    $this->getJson("/api/v1/notes/{$noteToDelete->code}")->assertSuccessful();
+    $this->getJson("/api/v1/notes/{$noteToDelete->code}")->assertOk();
     $this->putJson("/api/v1/notes/{$noteToDelete->code}", ['title' => 'Nope', 'body' => 'Nope.'])->assertNotFound();
     $this->deleteJson("/api/v1/notes/{$noteToDelete->code}")->assertNotFound();
 
@@ -217,7 +219,7 @@ it('lists every team with id and name for client team discovery', function () {
 
     $response = $this->getJson('/api/v1/teams');
 
-    $response->assertSuccessful();
+    $response->assertOk();
     expect($response->json('data'))->toBe([
         ['id' => $developers->id, 'name' => 'developers'],
         ['id' => $sysadmins->id, 'name' => 'sysadmins'],
@@ -244,7 +246,7 @@ it('never exposes the internal note id and refuses id-based URLs', function () {
     expect($list->json('data.0'))->not->toHaveKey('id');
 
     $show = $this->getJson('/api/v1/notes/abq4x');
-    $show->assertSuccessful();
+    $show->assertOk();
     expect($show->json('data'))->not->toHaveKey('id');
 
     $this->getJson("/api/v1/notes/{$note->id}")->assertNotFound();
@@ -264,4 +266,102 @@ it('ignores client-supplied code and ulid on create', function () {
     $note = Note::sole();
     expect($note->code)->not->toBe('abq4x');
     expect($note->ulid)->not->toBe('01ARZ3NDEKTSV4RRFFQ69G5FA1');
+});
+
+it('authenticates a real bearer token end to end and refuses it once revoked', function () {
+    $tokenUser = User::factory()->create();
+    $plainTextToken = $tokenUser->createToken('cli on my laptop')->plainTextToken;
+    Note::factory()->create(['title' => 'Reachable with a token']);
+
+    $this->getJson('/api/v1/notes')->assertUnauthorized();
+    $this->withToken('not-a-real-token')->getJson('/api/v1/notes')->assertUnauthorized();
+
+    $authenticated = $this->withToken($plainTextToken)->getJson('/api/v1/notes');
+    $authenticated->assertOk();
+    expect($authenticated->json('data.0.title'))->toBe('Reachable with a token');
+
+    $created = $this->withToken($plainTextToken)->postJson('/api/v1/notes', ['title' => 'From the cli', 'body' => 'Body.']);
+    $created->assertCreated();
+    expect(Note::where('code', $created->json('data.code'))->sole()->user->is($tokenUser))->toBeTrue();
+
+    expect(Note::count())->toBe(2);
+});
+
+it('refuses a token that has been revoked', function () {
+    $tokenUser = User::factory()->create();
+    $plainTextToken = $tokenUser->createToken('cli on my laptop')->plainTextToken;
+
+    $tokenUser->tokens()->delete();
+
+    $this->withToken($plainTextToken)->getJson('/api/v1/notes')->assertUnauthorized();
+});
+
+it('updates a note over PATCH the same way it does over PUT', function () {
+    $developers = Team::factory()->create(['name' => 'developers']);
+    $author = User::factory()->create();
+    $note = Note::factory()->create(['title' => 'Old titel', 'body' => 'Body.', 'user_id' => $author->id]);
+    Sanctum::actingAs(User::factory()->create());
+
+    $response = $this->patchJson("/api/v1/notes/{$note->code}", [
+        'title' => 'Old title, fixed',
+        'body' => 'Body.',
+        'team_ids' => [$developers->id],
+    ]);
+
+    $response->assertOk();
+    $note->refresh();
+    expect($note->title)->toBe('Old title, fixed');
+    expect($note->user->is($author))->toBeTrue();
+    expect($note->teams()->pluck('teams.id')->all())->toBe([$developers->id]);
+
+    // PATCH carries the same full-payload contract as PUT - a partial one is rejected.
+    $partial = $this->patchJson("/api/v1/notes/{$note->code}", ['title' => 'Title only']);
+    $partial->assertUnprocessable();
+    $partial->assertJsonValidationErrors(['body']);
+    expect($note->fresh()->title)->toBe('Old title, fixed');
+});
+
+it('records who did what when notes are written through the api', function () {
+    $tokenUser = User::factory()->create();
+    $plainTextToken = $tokenUser->createToken('cli')->plainTextToken;
+
+    $created = $this->withToken($plainTextToken)->postJson('/api/v1/notes', ['title' => 'Logged create', 'body' => 'Body.']);
+    $created->assertCreated();
+
+    $activity = Activity::sole();
+    expect($activity->user->is($tokenUser))->toBeTrue();
+    expect($activity->action)->toBe(ActivityAction::Created);
+
+    $this->withToken($plainTextToken)->putJson("/api/v1/notes/{$created->json('data.code')}", ['title' => 'Logged edit', 'body' => 'Body.'])->assertOk();
+    $this->withToken($plainTextToken)->deleteJson("/api/v1/notes/{$created->json('data.code')}")->assertNoContent();
+
+    expect(Activity::pluck('action')->all())->toBe([ActivityAction::Created, ActivityAction::Edited, ActivityAction::Deleted]);
+    expect(Activity::pluck('user_id')->unique()->all())->toBe([$tokenUser->id]);
+});
+
+it('pages through the list with working links and meta', function () {
+    Sanctum::actingAs(User::factory()->create());
+    // Distinct created_at values: the list is ordered by latest(), so ties
+    // would leave which note lands on page two up to the database.
+    foreach (range(1, 21) as $minutesOld) {
+        Note::factory()->create(['created_at' => now()->subMinutes($minutesOld)]);
+    }
+    $oldestNote = Note::orderBy('created_at')->first();
+
+    $firstPage = $this->getJson('/api/v1/notes');
+
+    $firstPage->assertOk();
+    expect($firstPage->json('data'))->toHaveCount(20);
+    expect($firstPage->json('meta.total'))->toBe(21);
+    expect($firstPage->json('meta.last_page'))->toBe(2);
+    expect($firstPage->json('links.prev'))->toBeNull();
+    expect($firstPage->json('links.next'))->toContain('page=2');
+
+    $secondPage = $this->getJson('/api/v1/notes?page=2');
+
+    $secondPage->assertOk();
+    expect($secondPage->json('data'))->toHaveCount(1);
+    expect($secondPage->json('data.0.code'))->toBe($oldestNote->code);
+    expect($secondPage->json('meta.current_page'))->toBe(2);
+    expect($secondPage->json('links.next'))->toBeNull();
 });

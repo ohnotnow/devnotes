@@ -1,10 +1,12 @@
 <?php
 
+use App\Enums\ActivityAction;
 use App\Mcp\Servers\DevnotesServer;
 use App\Mcp\Tools\AddNote;
 use App\Mcp\Tools\GetNote;
 use App\Mcp\Tools\SearchNotes;
 use App\Mcp\Tools\UpdateNote;
+use App\Models\Activity;
 use App\Models\Note;
 use App\Models\OAuthUser;
 use App\Models\Team;
@@ -558,4 +560,42 @@ it('returns a soft-deleted note from get-note with deleted_at flagged', function
 
     $liveResponse->assertOk();
     $liveResponse->assertDontSee('deleted_at');
+});
+
+it('records who did what when notes are written through mcp', function () {
+    $author = User::factory()->create();
+
+    $created = DevnotesServer::actingAs(OAuthUser::findOrFail($author->id))->tool(AddNote::class, [
+        'title' => 'Logged through mcp',
+        'body' => 'Captured mid-session.',
+    ]);
+    $created->assertOk();
+
+    $note = Note::sole();
+    $activity = Activity::sole();
+    expect($activity->user->is($author))->toBeTrue();
+    expect($activity->action)->toBe(ActivityAction::Created);
+    expect($activity->note->is($note))->toBeTrue();
+
+    DevnotesServer::actingAs(OAuthUser::findOrFail($author->id))->tool(UpdateNote::class, [
+        'code' => $note->code,
+        'title' => 'Edited through mcp',
+        'body' => 'Captured mid-session.',
+    ])->assertOk();
+
+    expect(Activity::pluck('action')->all())->toBe([ActivityAction::Created, ActivityAction::Edited]);
+    expect(Activity::pluck('user_id')->unique()->all())->toBe([$author->id]);
+});
+
+it('rejects a search with no query and writes nothing', function () {
+    $user = User::factory()->create();
+    Note::factory()->create(['title' => 'Postgres gotcha']);
+
+    $missing = DevnotesServer::actingAs(OAuthUser::findOrFail($user->id))->tool(SearchNotes::class, []);
+    $missing->assertHasErrors();
+
+    $blank = DevnotesServer::actingAs(OAuthUser::findOrFail($user->id))->tool(SearchNotes::class, ['query' => '']);
+    $blank->assertHasErrors();
+
+    expect(Activity::count())->toBe(0);
 });

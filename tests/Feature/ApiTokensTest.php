@@ -20,6 +20,12 @@ it('rejects a blank token name and creates nothing', function () {
         ->call('create')
         ->assertHasErrors(['tokenName']);
 
+    Livewire::actingAs($user)
+        ->test(ApiTokens::class)
+        ->set('tokenName', str_repeat('x', 256))
+        ->call('create')
+        ->assertHasErrors(['tokenName']);
+
     expect($user->tokens()->count())->toBe(0);
 });
 
@@ -116,4 +122,20 @@ it('creates a named token and surfaces the plaintext for copying', function () {
     // literal @js( reaching the browser means the copy button's Alpine
     // expression is broken (illegal character U+0040).
     $component->assertDontSee('@js(');
+});
+
+it('reads show-all from the query string, where it arrives as a string', function () {
+    $admin = User::factory()->admin()->create();
+    $otherUser = User::factory()->create();
+    $otherUser->createToken('forgotten laptop token');
+
+    Livewire::actingAs($admin)
+        ->withQueryParams(['showAll' => '1'])
+        ->test(ApiTokens::class)
+        ->assertSee('forgotten laptop token');
+
+    Livewire::actingAs($admin)
+        ->withQueryParams(['showAll' => '0'])
+        ->test(ApiTokens::class)
+        ->assertDontSee('forgotten laptop token');
 });

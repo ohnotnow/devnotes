@@ -12,10 +12,23 @@ it('shows admins the team list with member and note counts, and turns everyone e
     $developers = Team::factory()->create(['name' => 'developers']);
     $developers->users()->attach([$admin->id, $regularUser->id]);
     Note::factory(3)->create()->each(fn (Note $note) => $note->teams()->attach($developers));
+    Note::factory()->create()->teams()->attach($developers);
+    Note::first()->delete();
+
+    // The guest check comes first: actingAs persists for the rest of the test,
+    // so a later "guest" request is still signed in as whoever acted last.
+    $this->get(route('admin.teams'))->assertRedirect(route('login'));
 
     $this->actingAs($admin)->get(route('admin.teams'))
         ->assertSuccessful()
-        ->assertSeeInOrder(['developers', '2', '3']);
+        ->assertSee('developers');
+
+    // The counts render as bare digits, which match all sorts of markup, so
+    // assert the numbers the view was handed. A soft-deleted note is not
+    // counted - the column is about live notes in the team.
+    Livewire::actingAs($admin)
+        ->test(Teams::class)
+        ->assertViewHas('teams', fn ($teams) => $teams->sole()->users_count === 2 && $teams->sole()->notes_count === 3);
 
     $this->actingAs($regularUser)->get(route('admin.teams'))->assertForbidden();
 });

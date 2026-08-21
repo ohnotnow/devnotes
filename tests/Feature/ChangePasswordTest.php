@@ -114,6 +114,14 @@ it('rejects a wrong current password or a fumbled confirmation', function () {
         ->call('save')
         ->assertHasErrors(['newPassword']);
 
+    Livewire::actingAs($flaggedUser)
+        ->test(ChangePassword::class)
+        ->set('currentPassword', 'temporary-pass')
+        ->set('newPassword', 'short')
+        ->set('newPassword_confirmation', 'short')
+        ->call('save')
+        ->assertHasErrors(['newPassword']);
+
     expect($flaggedUser->refresh()->must_change_password)->toBeTrue();
 
     Auth::logout();

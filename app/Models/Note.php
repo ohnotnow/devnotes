@@ -27,7 +27,7 @@ use League\CommonMark\Extension\Mention\MentionExtension;
 use League\CommonMark\MarkdownConverter;
 use RuntimeException;
 
-#[Fillable(['title', 'body', 'user_id', 'code', 'ulid'])]
+#[Fillable(['title', 'body'])]
 class Note extends Model
 {
     /** @use HasFactory<NoteFactory> */

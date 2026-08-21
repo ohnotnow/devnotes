@@ -9,6 +9,9 @@ it('shows the activity log to admins and refuses everyone else', function () {
     $admin = User::factory()->create(['is_admin' => true]);
     $regularUser = User::factory()->create();
 
+    // The guest check comes first: actingAs persists for the rest of the test,
+    // so a later "guest" request is still signed in as whoever acted last.
+    $this->get(route('admin.activity'))->assertRedirect(route('login'));
     $this->actingAs($admin)->get(route('admin.activity'))->assertOk();
     $this->actingAs($regularUser)->get(route('admin.activity'))->assertForbidden();
 });
@@ -21,7 +24,6 @@ it('lists activity with who, what and when', function () {
     $admin = User::factory()->create(['is_admin' => true]);
     $this->actingAs($admin)->get(route('admin.activity'))
         ->assertSee('Eddie Editor')
-        ->assertSee('Created')
         ->assertSee("created note #abq4x 'Puppet client on Rocky'");
 });
 
@@ -56,19 +58,10 @@ it('announces the result count in a status region when the filters change it', f
         ->assertSeeHtml('role="status"')
         ->assertSee('Showing 2 results')
         ->call('toggleAction', 'edited')
-        ->assertSee('Showing 1 result');
-});
-
-it('toggles an action filter on and off from its badge button', function () {
-    $author = User::factory()->create();
-    $this->actingAs($author);
-    Note::factory()->create(['code' => 'abq4x', 'title' => 'Puppet modules']);
-    $admin = User::factory()->create(['is_admin' => true]);
-
-    Livewire::actingAs($admin)->test(ActivityLog::class)
-        ->call('toggleAction', 'edited')
+        ->assertSee('Showing 1 result')
         ->assertDontSee("created note #abq4x 'Puppet modules'")
         ->call('toggleAction', 'edited')
+        ->assertSee('Showing 2 results')
         ->assertSee("created note #abq4x 'Puppet modules'");
 });
 

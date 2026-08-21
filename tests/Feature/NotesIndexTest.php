@@ -90,7 +90,7 @@ it('orders the browse list by most recently updated, matching search results', f
         ->assertSeeInOrder(['Newest gotcha', 'Middle gotcha', 'Oldest gotcha']);
 });
 
-it('shows team badges on search results', function () {
+it('shows team badges when browsing, when searching and when showing all teams', function () {
     $distinctTeam = Team::factory()->create(['name' => 'platform-squad']);
     $viewer = User::factory()->create();
     $viewer->teams()->attach($distinctTeam);
@@ -103,35 +103,10 @@ it('shows team badges on search results', function () {
     // while the form only appears after the table.
     Livewire::actingAs($viewer)
         ->test(NotesIndex::class)
+        ->assertSeeInOrder(['platform-squad', 'Badged Author'])
         ->set('search', 'docker')
-        ->assertSeeInOrder(['platform-squad', 'Badged Author']);
-});
-
-it('shows team badges when browsing my teams', function () {
-    $distinctTeam = Team::factory()->create(['name' => 'platform-squad']);
-    $viewer = User::factory()->create();
-    $viewer->teams()->attach($distinctTeam);
-    $author = User::factory()->create(['forenames' => 'Badged', 'surname' => 'Author']);
-    $taggedNote = Note::factory()->create(['title' => 'Docker layer cache misses', 'user_id' => $author->id]);
-    $taggedNote->teams()->attach($distinctTeam);
-
-    // assertSeeInOrder because a bare assertSee would match the note form's
-    // team checkboxes: the badge renders before the author cell in the row,
-    // while the form only appears after the table.
-    Livewire::actingAs($viewer)
-        ->test(NotesIndex::class)
-        ->assertSeeInOrder(['platform-squad', 'Badged Author']);
-});
-
-it('shows team badges when browsing all teams', function () {
-    $distinctTeam = Team::factory()->create(['name' => 'platform-squad']);
-    $viewer = User::factory()->create();
-    $author = User::factory()->create(['forenames' => 'Badged', 'surname' => 'Author']);
-    $taggedNote = Note::factory()->create(['title' => 'Docker layer cache misses', 'user_id' => $author->id]);
-    $taggedNote->teams()->attach($distinctTeam);
-
-    Livewire::actingAs($viewer)
-        ->test(NotesIndex::class)
+        ->assertSeeInOrder(['platform-squad', 'Badged Author'])
+        ->set('search', '')
         ->set('broader', true)
         ->assertSeeInOrder(['platform-squad', 'Badged Author']);
 });
@@ -202,4 +177,27 @@ it('lists notes newest-first with their code, title and author', function () {
     $response->assertSee(route('notes.show', $olderNote));
     $response->assertSee("#{$olderNote->code}");
     $response->assertDontSee('A binned gotcha');
+});
+
+it('returns to the first page when the search or the team scope changes', function () {
+    $reader = User::factory()->create();
+    Note::factory()->count(25)->create();
+    $matchOnFirstPage = Note::factory()->create(['title' => 'Docker layer cache misses', 'updated_at' => now()->addMinute()]);
+
+    Livewire::actingAs($reader)
+        ->test(NotesIndex::class)
+        ->set('broader', true)
+        ->call('setPage', 2)
+        ->assertDontSee('Docker layer cache misses')
+        ->set('search', 'docker')
+        ->assertSee('Docker layer cache misses');
+
+    Livewire::actingAs($reader)
+        ->test(NotesIndex::class)
+        ->set('broader', true)
+        ->call('setPage', 2)
+        ->assertDontSee($matchOnFirstPage->title)
+        ->set('broader', false)
+        ->set('broader', true)
+        ->assertSee($matchOnFirstPage->title);
 });

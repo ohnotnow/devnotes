@@ -1,6 +1,8 @@
 <?php
 
+use App\Enums\ActivityAction;
 use App\Livewire\Admin\Users;
+use App\Models\Activity;
 use App\Models\Note;
 use App\Models\Team;
 use App\Models\User;
@@ -120,20 +122,20 @@ it('toggles admin status both ways but never your own', function () {
         ->test(Users::class)
         ->call('toggleAdmin', $colleague->id);
 
-    expect($colleague->refresh()->is_admin)->toBeTruthy();
+    expect($colleague->refresh()->is_admin)->toBeTrue();
 
     Livewire::actingAs($admin)
         ->test(Users::class)
         ->call('toggleAdmin', $colleague->id);
 
-    expect($colleague->refresh()->is_admin)->toBeFalsy();
-    expect($untouchedUser->refresh()->is_admin)->toBeFalsy();
+    expect($colleague->refresh()->is_admin)->toBeFalse();
+    expect($untouchedUser->refresh()->is_admin)->toBeFalse();
 
     Livewire::actingAs($admin)
         ->test(Users::class)
         ->call('toggleAdmin', $admin->id);
 
-    expect($admin->refresh()->is_admin)->toBeTruthy();
+    expect($admin->refresh()->is_admin)->toBeTrue();
 });
 
 it('keeps the leaver and their notes when the transfer choice is invalid', function () {
@@ -175,6 +177,36 @@ it('deletes a user after transferring their notes to the chosen recipient', func
     expect($recipient->notes()->withTrashed()->count())->toBe(3);
     expect($bystander->notes()->count())->toBe(1);
     expect(Note::count())->toBe(3);
+    // The transfer is a bulk update, so it must not look like the admin edited
+    // every note they inherited.
+    expect(Activity::count())->toBe(0);
+});
+
+it('keeps a deleted users activity rows and shows them as a deleted user', function () {
+    $admin = User::factory()->create(['is_admin' => true]);
+    $leaver = User::factory()->create();
+    $note = Note::factory()->create(['user_id' => $leaver->id]);
+    Activity::factory()->create([
+        'user_id' => $leaver->id,
+        'note_id' => $note->id,
+        'action' => ActivityAction::Created,
+        'description' => "created note #{$note->code} '{$note->title}'",
+    ]);
+
+    Livewire::actingAs($admin)
+        ->test(Users::class)
+        ->call('openDelete', $leaver->id)
+        ->set('transferToId', (string) $admin->id)
+        ->call('deleteUser')
+        ->assertHasNoErrors();
+
+    expect(Activity::count())->toBe(1);
+    expect(Activity::sole()->user_id)->toBeNull();
+
+    $this->actingAs($admin)->get(route('admin.activity'))
+        ->assertSuccessful()
+        ->assertSee('Deleted user')
+        ->assertSee("created note #{$note->code}");
 });
 
 it('shows the users nav link to admins only', function () {

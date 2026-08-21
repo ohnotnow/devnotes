@@ -5,6 +5,7 @@ namespace App\Livewire;
 use App\Models\Note;
 use App\Models\Team;
 use Flux\Flux;
+use Illuminate\Support\Arr;
 use Livewire\Attributes\On;
 use Livewire\Component;
 
@@ -61,7 +62,7 @@ class NoteForm extends Component
         ]);
 
         $note = Note::findOrNew($this->editing['id']);
-        $note->fill($this->editing);
+        $note->fill(Arr::only($this->editing, ['title', 'body']));
         if (! $note->exists) {
             $note->user_id = auth()->id();
         }

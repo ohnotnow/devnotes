@@ -117,3 +117,67 @@ it('creates a note owned by the logged-in user', function () {
     expect($note->title)->toBe('Flyout focus gotcha');
     expect($note->user->is($user))->toBeTrue();
 });
+
+it('starts a fresh note after an edit instead of overwriting the note just edited', function () {
+    $editor = User::factory()->create();
+    $existingNote = Note::factory()->create(['title' => 'Old title', 'body' => 'Old body.']);
+
+    Livewire::actingAs($editor)
+        ->test(NoteForm::class)
+        ->call('openEdit', $existingNote->id)
+        ->call('openCreate')
+        ->set('editing.title', 'Brand new note')
+        ->set('editing.body', 'New body.')
+        ->call('save')
+        ->assertHasNoErrors();
+
+    expect(Note::count())->toBe(2);
+    expect($existingNote->fresh()->title)->toBe('Old title');
+    expect($existingNote->fresh()->body)->toBe('Old body.');
+});
+
+it('leaves an existing note untouched when an edit fails validation', function () {
+    $developers = Team::factory()->create(['name' => 'developers']);
+    $editor = User::factory()->create();
+    $note = Note::factory()->create(['title' => 'Working title', 'body' => 'Working body.']);
+    $note->teams()->attach($developers);
+
+    Livewire::actingAs($editor)
+        ->test(NoteForm::class)
+        ->call('openEdit', $note->id)
+        ->set('editing.title', '')
+        ->set('editing.body', '')
+        ->call('save')
+        ->assertHasErrors(['editing.title', 'editing.body'])
+        ->assertNotDispatched('note-saved');
+
+    $note->refresh();
+    expect($note->title)->toBe('Working title');
+    expect($note->body)->toBe('Working body.');
+    expect($note->teams()->pluck('teams.id')->all())->toBe([$developers->id]);
+    expect(Note::count())->toBe(1);
+});
+
+it('ignores note fields the form does not own', function () {
+    $author = User::factory()->create();
+    $editor = User::factory()->create();
+    $note = Note::factory()->create(['title' => 'Working title', 'user_id' => $author->id]);
+    $originalCode = $note->code;
+    $originalUlid = $note->ulid;
+
+    Livewire::actingAs($editor)
+        ->test(NoteForm::class)
+        ->call('openEdit', $note->id)
+        ->set('editing.user_id', $editor->id)
+        ->set('editing.code', 'zzzzz')
+        ->set('editing.ulid', '01JZZZZZZZZZZZZZZZZZZZZZZZ')
+        ->set('editing.title', 'Title the editor is allowed to change')
+        ->call('save')
+        ->assertHasNoErrors();
+
+    $note->refresh();
+    expect($note->title)->toBe('Title the editor is allowed to change');
+    expect($note->user->is($author))->toBeTrue();
+    expect($note->code)->toBe($originalCode);
+    expect($note->ulid)->toBe($originalUlid);
+});

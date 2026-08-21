@@ -16,13 +16,18 @@ it('soft-deletes a note without touching other notes', function () {
     expect(Note::find($noteToKeep->id))->not->toBeNull();
 });
 
-it('lists the notes a user has created', function () {
+it('creates and lists a users notes through the relationship', function () {
     $userWithNote = User::factory()->create();
     $userWithoutNote = User::factory()->create();
-    $note = Note::factory()->create(['user_id' => $userWithNote->id]);
+
+    // Notes use #[Fillable] attributes rather than $fillable, so this also
+    // pins that title and body are mass-assignable.
+    $note = $userWithNote->notes()->create(['title' => 'A title', 'body' => 'A body']);
 
     expect($userWithNote->notes)->toHaveCount(1);
     expect($userWithNote->notes->first()->is($note))->toBeTrue();
+    expect($note->fresh()->title)->toBe('A title');
+    expect($note->fresh()->user->is($userWithNote))->toBeTrue();
     expect($userWithoutNote->notes)->toHaveCount(0);
 });
 
@@ -50,13 +55,4 @@ it('refuses a duplicate code even when the original note is soft-deleted', funct
     expect(fn () => Note::factory()->create(['code' => 'abq4x']))
         ->toThrow(QueryException::class);
     expect(Note::withTrashed()->where('code', 'abq4x')->count())->toBe(1);
-});
-
-it('mass-assigns a note through the creator relationship', function () {
-    $user = User::factory()->create();
-
-    $note = $user->notes()->create(['title' => 'A title', 'body' => 'A body']);
-
-    expect($note->fresh()->title)->toBe('A title');
-    expect($note->fresh()->user->is($user))->toBeTrue();
 });

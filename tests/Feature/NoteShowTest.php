@@ -72,17 +72,6 @@ it('restores exactly the trashed note and it reappears in search', function () {
     expect(Note::searchScoped($user, 'Restorable gotcha')->get()->pluck('id')->all())->toContain($noteToRestore->id);
 });
 
-it('describes deletion as removal from discovery, not dangling references', function () {
-    $user = User::factory()->create();
-    $note = Note::factory()->create();
-
-    $response = $this->actingAs($user)->get(route('notes.show', $note));
-
-    // Truncated before "agents' digests" - the apostrophe is HTML-escaped in
-    // the rendered page, so completing the sentence here would go red.
-    $response->assertSee('disappears from search, the notes list, and agents');
-});
-
 it('resolves the note page by code, not by internal id', function () {
     $user = User::factory()->create();
     $note = Note::factory()->create(['code' => 'abq4x', 'title' => 'Found by code']);

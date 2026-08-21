@@ -29,11 +29,11 @@ class AddNote extends Tool
 
         /** @var User $actingUser */
         $actingUser = $request->user();
+        $user = User::findOrFail($actingUser->id);
 
-        $note = Note::create([
+        $note = $user->notes()->create([
             'title' => $validated['title'],
             'body' => $validated['body'],
-            'user_id' => $actingUser->id,
         ]);
 
         $note->assignTeams(isset($validated['teams'])
@@ -45,7 +45,6 @@ class AddNote extends Tool
             'title' => $note->title,
         ];
 
-        $user = User::findOrFail($actingUser->id);
         $similarNotes = Note::similarTo($user, $note->title)
             ->reject(fn (Note $found) => $found->is($note))
             ->take(3);
