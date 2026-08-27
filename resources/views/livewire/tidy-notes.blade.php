@@ -13,14 +13,14 @@
 
     <flux:table :paginate="$notes" class="mt-6">
         <flux:table.columns>
-            <flux:table.column>Code</flux:table.column>
+            <flux:table.column class="max-md:hidden">Code</flux:table.column>
             <flux:table.column>Title</flux:table.column>
             @if ($showingAll)
-                <flux:table.column>Author</flux:table.column>
+                <flux:table.column class="max-md:hidden">Author</flux:table.column>
             @endif
-            <flux:table.column>Created</flux:table.column>
-            <flux:table.column>Updated</flux:table.column>
-            <flux:table.column>Last read</flux:table.column>
+            <flux:table.column class="max-md:hidden">Created</flux:table.column>
+            <flux:table.column class="max-md:hidden">Updated</flux:table.column>
+            <flux:table.column class="max-md:hidden">Last read</flux:table.column>
             <flux:table.column>Reads</flux:table.column>
             <flux:table.column></flux:table.column>
         </flux:table.columns>
@@ -33,7 +33,7 @@
             @endif
             @foreach ($notes as $note)
                 <flux:table.row wire:key="note-{{ $note->id }}">
-                    <flux:table.cell>
+                    <flux:table.cell class="max-md:hidden">
                         {{-- wire:key on the trigger: escape-closing a flyout can lose focus otherwise - see devnote #m37h6 --}}
                         <flux:badge
                             as="button"
@@ -45,15 +45,15 @@
                             title="Preview #{{ $note->code }}"
                         >#{{ $note->code }}</flux:badge>
                     </flux:table.cell>
-                    <flux:table.cell variant="strong">
+                    <flux:table.cell variant="strong" class="whitespace-normal">
                         <flux:link as="button" wire:key="preview-title-{{ $note->id }}" wire:click="preview({{ $note->id }})">{{ $note->title }}</flux:link>
                     </flux:table.cell>
                     @if ($showingAll)
-                        <flux:table.cell>{{ $note->user->full_name }}</flux:table.cell>
+                        <flux:table.cell class="max-md:hidden">{{ $note->user->full_name }}</flux:table.cell>
                     @endif
-                    <flux:table.cell>{{ $note->created_at->diffForHumans() }}</flux:table.cell>
-                    <flux:table.cell>{{ $note->updated_at->diffForHumans() }}</flux:table.cell>
-                    <flux:table.cell>{{ $note->last_read_at?->diffForHumans() ?? 'never' }}</flux:table.cell>
+                    <flux:table.cell class="max-md:hidden">{{ $note->created_at->diffForHumans() }}</flux:table.cell>
+                    <flux:table.cell class="max-md:hidden">{{ $note->updated_at->diffForHumans() }}</flux:table.cell>
+                    <flux:table.cell class="max-md:hidden">{{ $note->last_read_at?->diffForHumans() ?? 'never' }}</flux:table.cell>
                     <flux:table.cell>{{ $note->read_count }}</flux:table.cell>
                     <flux:table.cell align="end">
                         <flux:button

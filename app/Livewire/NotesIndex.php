@@ -23,6 +23,7 @@ class NotesIndex extends Component
         $broader = filter_var($this->broader, FILTER_VALIDATE_BOOL);
 
         return view('livewire.notes-index', [
+            'searchingAllTeams' => $broader,
             'notes' => $this->search
                 ? Note::searchScoped(auth()->user(), $this->search, $broader)->paginate(20)
                 : Note::with(['user', 'teams'])->when(! $broader, fn ($query) => $query->inTeamsOf(auth()->user()))->orderByDesc('updated_at')->orderByDesc('id')->paginate(20),

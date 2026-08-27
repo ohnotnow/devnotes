@@ -3,7 +3,7 @@
         <flux:callout variant="danger" icon="x-circle" heading="This note was deleted on the {{ $note->deleted_at->format('jS \o\f F, Y') }}" class="mb-6" />
     @endif
 
-    <div class="flex items-center gap-3">
+    <div class="flex flex-wrap items-center gap-3">
         <flux:heading size="xl" level="1">{{ $note->title }}</flux:heading>
         <flux:badge
             as="button"
@@ -15,12 +15,17 @@
         >#{{ $note->code }}</flux:badge>
         <flux:spacer />
         @if ($note->trashed())
-            <flux:button title="Restore" aria-label="Restore note" size="sm" icon="arrow-uturn-left" wire:click="restore"></flux:button>
+            <flux:button size="sm" icon="arrow-uturn-left" wire:click="restore">Restore</flux:button>
         @else
-            <flux:button title="Edit" aria-label="Edit" size="sm" icon="pencil-square" wire:click="$dispatch('note-editor:edit', { id: {{ $note->id }} })"></flux:button>
-            <flux:modal.trigger name="confirm-note-delete">
-                <flux:button title="Delete" aria-label="Delete" size="sm" variant="danger" icon="trash"></flux:button>
-            </flux:modal.trigger>
+            <flux:button size="sm" icon="pencil-square" wire:click="$dispatch('note-editor:edit', { id: {{ $note->id }} })">Edit</flux:button>
+            <flux:dropdown>
+                <flux:button variant="subtle" size="sm" icon="ellipsis-horizontal" aria-label="More options for this note" />
+                <flux:menu>
+                    <flux:modal.trigger name="confirm-note-delete">
+                        <flux:menu.item icon="trash" variant="danger">Delete note...</flux:menu.item>
+                    </flux:modal.trigger>
+                </flux:menu>
+            </flux:dropdown>
         @endif
     </div>
 

@@ -16,5 +16,7 @@
         @endforeach
     </flux:checkbox.group>
 
-    <flux:button variant="primary" wire:click="save">Save teams</flux:button>
+    <div class="flex justify-end">
+        <flux:button variant="primary" wire:click="save">Save teams</flux:button>
+    </div>
 </div>

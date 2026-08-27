@@ -9,7 +9,7 @@
             @endif
         </div>
         <flux:spacer />
-        <flux:button icon="plus" wire:click="openAdd" title="Add user" aria-label="Add user"></flux:button>
+        <flux:button variant="primary" icon="plus" wire:click="openAdd">Add user</flux:button>
     </div>
 
     @if ($newTempPassword !== '')
@@ -33,9 +33,9 @@
     <flux:table class="mt-6">
         <flux:table.columns>
             <flux:table.column>Person</flux:table.column>
-            <flux:table.column>Username</flux:table.column>
-            <flux:table.column>Teams</flux:table.column>
-            <flux:table.column>Notes</flux:table.column>
+            <flux:table.column class="max-md:hidden">Username</flux:table.column>
+            <flux:table.column class="max-md:hidden">Teams</flux:table.column>
+            <flux:table.column class="max-md:hidden">Notes</flux:table.column>
             <flux:table.column>Admin</flux:table.column>
             <flux:table.column></flux:table.column>
         </flux:table.columns>
@@ -49,15 +49,15 @@
                             <flux:text size="sm" inline class="ms-2">{{ $user->email }}</flux:text>
                         @endif
                     </flux:table.cell>
-                    <flux:table.cell>{{ $user->username !== '' ? $user->username : 'awaiting first login' }}</flux:table.cell>
-                    <flux:table.cell>
+                    <flux:table.cell class="max-md:hidden">{{ $user->username !== '' ? $user->username : 'awaiting first login' }}</flux:table.cell>
+                    <flux:table.cell class="max-md:hidden">
                         @forelse ($user->teams as $team)
                             <flux:badge color="sky" size="sm" inset="top bottom">{{ $team->name }}</flux:badge>
                         @empty
                             <flux:badge color="zinc" size="sm" inset="top bottom">no teams</flux:badge>
                         @endforelse
                     </flux:table.cell>
-                    <flux:table.cell>{{ $user->notes_count }}</flux:table.cell>
+                    <flux:table.cell class="max-md:hidden">{{ $user->notes_count }}</flux:table.cell>
                     <flux:table.cell>
                         @if ($user->is(auth()->user()))
                             <flux:badge size="sm" color="blue">You</flux:badge>
@@ -70,23 +70,15 @@
                         @endif
                     </flux:table.cell>
                     <flux:table.cell align="end">
-                        <flux:button
-                            size="sm"
-                            icon="pencil"
-                            wire:click="openEdit({{ $user->id }})"
-                            aria-label="Edit {{ $user->full_name !== '' ? $user->full_name : $user->email }}"
-                            title="Edit {{ $user->full_name }}"
-                        ></flux:button>
-                        @unless ($user->is(auth()->user()))
-                            <flux:button
-                                size="sm"
-                                variant="danger"
-                                icon="trash"
-                                wire:click="openDelete({{ $user->id }})"
-                                aria-label="Delete {{ $user->full_name !== '' ? $user->full_name : $user->email }}"
-                                title="Delete {{ $user->full_name }}"
-                            ></flux:button>
-                        @endunless
+                        <flux:dropdown>
+                            <flux:button variant="subtle" size="sm" icon="ellipsis-horizontal" aria-label="More options for {{ $user->full_name !== '' ? $user->full_name : $user->email }}" />
+                            <flux:menu>
+                                <flux:menu.item icon="pencil-square" wire:click="openEdit({{ $user->id }})">Edit</flux:menu.item>
+                                @unless ($user->is(auth()->user()))
+                                    <flux:menu.item icon="trash" variant="danger" wire:click="openDelete({{ $user->id }})">Delete...</flux:menu.item>
+                                @endunless
+                            </flux:menu>
+                        </flux:dropdown>
                     </flux:table.cell>
                 </flux:table.row>
             @endforeach

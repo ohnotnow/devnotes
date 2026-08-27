@@ -65,6 +65,18 @@ it('announces the result count in a status region when the filters change it', f
         ->assertSee("created note #abq4x 'Puppet modules'");
 });
 
+it('shows an empty state when the filters match no activity', function () {
+    $author = User::factory()->create();
+    $this->actingAs($author);
+    Note::factory()->create(['title' => 'Puppet modules']);
+    $admin = User::factory()->create(['is_admin' => true]);
+
+    Livewire::actingAs($admin)->test(ActivityLog::class)
+        ->set('search', 'zzzznotfound')
+        ->assertSee('No activity matches your filters')
+        ->assertDontSee('Puppet modules');
+});
+
 it('filters activity by any combination of action toggles, alongside the search', function () {
     $author = User::factory()->create();
     $this->actingAs($author);

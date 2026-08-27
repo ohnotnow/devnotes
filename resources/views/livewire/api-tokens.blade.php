@@ -6,7 +6,7 @@
         </div>
         <flux:spacer />
         <flux:modal.trigger name="token-create">
-            <flux:button title="New token" aria-label="Create new token" icon="plus"></flux:button>
+            <flux:button variant="primary" icon="plus">New token</flux:button>
         </flux:modal.trigger>
     </div>
 
@@ -39,9 +39,9 @@
         <flux:table.columns>
             <flux:table.column>Name</flux:table.column>
             @if ($showingAll)
-                <flux:table.column>Owner</flux:table.column>
+                <flux:table.column class="max-md:hidden">Owner</flux:table.column>
             @endif
-            <flux:table.column>Created</flux:table.column>
+            <flux:table.column class="max-md:hidden">Created</flux:table.column>
             <flux:table.column>Last used</flux:table.column>
             <flux:table.column></flux:table.column>
         </flux:table.columns>
@@ -56,9 +56,9 @@
                 <flux:table.row wire:key="token-{{ $token->id }}">
                     <flux:table.cell variant="strong">{{ $token->name }}</flux:table.cell>
                     @if ($showingAll)
-                        <flux:table.cell>{{ $token->tokenable->full_name }}</flux:table.cell>
+                        <flux:table.cell class="max-md:hidden">{{ $token->tokenable->full_name }}</flux:table.cell>
                     @endif
-                    <flux:table.cell>{{ $token->created_at->diffForHumans() }}</flux:table.cell>
+                    <flux:table.cell class="max-md:hidden">{{ $token->created_at->diffForHumans() }}</flux:table.cell>
                     <flux:table.cell>{{ $token->last_used_at?->diffForHumans() ?? 'never' }}</flux:table.cell>
                     <flux:table.cell align="end">
                         <flux:button

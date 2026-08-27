@@ -179,6 +179,29 @@ it('lists notes newest-first with their code, title and author', function () {
     $response->assertDontSee('A binned gotcha');
 });
 
+it('shows an empty state when a search matches nothing', function () {
+    $user = User::factory()->create();
+    Note::factory()->create(['title' => 'Postgres ilike surprise']);
+
+    Livewire::actingAs($user)
+        ->test(NotesIndex::class)
+        ->set('search', 'zzzznotfound')
+        ->assertSee('No notes match your search')
+        ->assertDontSee('Postgres ilike surprise');
+});
+
+it('announces the result count to screen readers when filtering', function () {
+    $user = User::factory()->create();
+    Note::factory()->create(['title' => 'Postgres ilike surprise']);
+    Note::factory()->create(['title' => 'Postgres sequence reset']);
+
+    Livewire::actingAs($user)
+        ->test(NotesIndex::class)
+        ->set('search', 'postgres')
+        ->assertSeeHtml('role="status"')
+        ->assertSee('2 notes found');
+});
+
 it('returns to the first page when the search or the team scope changes', function () {
     $reader = User::factory()->create();
     Note::factory()->count(25)->create();
