@@ -21,10 +21,19 @@
             class="max-w-md min-w-0"
         />
 
-        <flux:field variant="inline" class="shrink-0">
-            <flux:switch wire:model.live="broader" aria-label="All teams" />
-            <flux:label class="whitespace-nowrap">All teams</flux:label>
-        </flux:field>
+        @if ($channelOptions->isNotEmpty())
+            {{-- No aria-label on flux:pillbox: it lands on the roleless custom-element
+                 wrapper and the trigger stays nameless. The sr-only label inside
+                 flux:field wires up aria-labelledby correctly. --}}
+            <flux:field class="min-w-64 shrink-0">
+                <flux:label class="sr-only">Filter by channel</flux:label>
+                <flux:pillbox wire:model.live="channels" multiple placeholder="All channels">
+                    @foreach ($channelOptions as $channel)
+                        <flux:pillbox.option value="{{ $channel->id }}" wire:key="filter-channel-{{ $channel->id }}">{{ $channel->name }}</flux:pillbox.option>
+                    @endforeach
+                </flux:pillbox>
+            </flux:field>
+        @endif
     </div>
 
     <div role="status" class="sr-only">{{ $notes->total() }} {{ Str::plural('note', $notes->total()) }} found</div>
@@ -33,9 +42,9 @@
         <flux:text class="mt-6">
             @if ($search)
                 No notes match your search.
-                @unless ($searchingAllTeams)
-                    Try the "All teams" switch to search beyond your own teams.
-                @endunless
+                @if ($filtering)
+                    Try clearing the channel filter to search every channel.
+                @endif
             @else
                 No notes here yet.
             @endif
@@ -54,8 +63,8 @@
                         <flux:table.cell class="flex flex-wrap items-center gap-3 whitespace-normal">
                             <a href="{{ route('notes.show', $note) }}"><flux:badge color="zinc" size="sm" inset="top bottom">#{{ $note->code }}</flux:badge></a>
                             <flux:link :href="route('notes.show', $note)" wire:navigate>{{ $note->title }}</flux:link>
-                            @foreach ($note->teams as $team)
-                                <flux:badge :color="$team->colour()" size="sm" inset="top bottom">{{ $team->name }}</flux:badge>
+                            @foreach ($note->channels as $channel)
+                                <flux:badge as="button" :color="$channel->colour()" size="sm" inset="top bottom" wire:click="filterChannel({{ $channel->id }})" aria-label="Filter by {{ $channel->name }}" title="Show only {{ $channel->name }} notes">{{ $channel->name }}</flux:badge>
                             @endforeach
                         </flux:table.cell>
                         <flux:table.cell class="max-md:hidden">{{ $note->user->full_name }}</flux:table.cell>

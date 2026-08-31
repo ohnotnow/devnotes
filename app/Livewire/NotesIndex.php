@@ -2,6 +2,7 @@
 
 namespace App\Livewire;
 
+use App\Models\Channel;
 use App\Models\Note;
 use Livewire\Attributes\On;
 use Livewire\Attributes\Url;
@@ -16,17 +17,30 @@ class NotesIndex extends Component
     public $search = '';
 
     #[Url]
-    public $broader = false;
+    public $channels = [];
+
+    public function mount(): void
+    {
+        if ($this->channels === []) {
+            $this->channels = auth()->user()->subscribedChannels()->pluck('channels.id')->all();
+        }
+    }
 
     public function render()
     {
-        $broader = filter_var($this->broader, FILTER_VALIDATE_BOOL);
+        $channelIds = array_map('intval', (array) $this->channels);
+
+        $notes = Note::with(['user', 'channels'])
+            ->inChannels($channelIds)
+            ->when($this->search, fn ($query) => $query->searchWords($this->search))
+            ->orderByDesc('updated_at')
+            ->orderByDesc('id')
+            ->paginate(20);
 
         return view('livewire.notes-index', [
-            'searchingAllTeams' => $broader,
-            'notes' => $this->search
-                ? Note::searchScoped(auth()->user(), $this->search, $broader)->paginate(20)
-                : Note::with(['user', 'teams'])->when(! $broader, fn ($query) => $query->inTeamsOf(auth()->user()))->orderByDesc('updated_at')->orderByDesc('id')->paginate(20),
+            'notes' => $notes,
+            'filtering' => $channelIds !== [],
+            'channelOptions' => Channel::orderBy('name')->get(),
         ]);
     }
 
@@ -35,8 +49,14 @@ class NotesIndex extends Component
         $this->resetPage();
     }
 
-    public function updatedBroader(): void
+    public function updatedChannels(): void
     {
+        $this->resetPage();
+    }
+
+    public function filterChannel(int $channelId): void
+    {
+        $this->channels = [$channelId];
         $this->resetPage();
     }
 

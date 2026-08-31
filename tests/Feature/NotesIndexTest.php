@@ -1,8 +1,8 @@
 <?php
 
 use App\Livewire\NotesIndex;
+use App\Models\Channel;
 use App\Models\Note;
-use App\Models\Team;
 use App\Models\User;
 use Livewire\Livewire;
 
@@ -47,22 +47,23 @@ it('keeps trashed notes out of the index and search results', function () {
         ->assertDontSee('A binned postgres gotcha');
 });
 
-it('scopes search to the viewer\'s teams with a toggle to search all teams', function () {
-    $developers = Team::factory()->create(['name' => 'developers']);
-    $sysadmins = Team::factory()->create(['name' => 'sysadmins']);
+it('starts the channel filter on the viewer\'s subscribed channels and searches everything when cleared', function () {
+    $developers = Channel::factory()->create(['name' => 'developers']);
+    $sysadmins = Channel::factory()->create(['name' => 'sysadmins']);
     $developer = User::factory()->create();
-    $developer->teams()->attach($developers);
+    $developer->channels()->attach($developers);
     $developerNote = Note::factory()->create(['title' => 'Docker layer cache misses']);
-    $developerNote->teams()->attach($developers);
+    $developerNote->channels()->attach($developers);
     $sysadminNote = Note::factory()->create(['title' => 'Docker daemon log rotation']);
-    $sysadminNote->teams()->attach($sysadmins);
+    $sysadminNote->channels()->attach($sysadmins);
 
     Livewire::actingAs($developer)
         ->test(NotesIndex::class)
+        ->assertSet('channels', [$developers->id])
         ->set('search', 'docker')
         ->assertSee('Docker layer cache misses')
         ->assertDontSee('Docker daemon log rotation')
-        ->set('broader', true)
+        ->set('channels', [])
         ->assertSee('Docker layer cache misses')
         ->assertSee('Docker daemon log rotation');
 });
@@ -90,16 +91,16 @@ it('orders the browse list by most recently updated, matching search results', f
         ->assertSeeInOrder(['Newest gotcha', 'Middle gotcha', 'Oldest gotcha']);
 });
 
-it('shows team badges when browsing, when searching and when showing all teams', function () {
-    $distinctTeam = Team::factory()->create(['name' => 'platform-squad']);
+it('shows channel badges when browsing, when searching and when showing all channels', function () {
+    $distinctChannel = Channel::factory()->create(['name' => 'platform-squad']);
     $viewer = User::factory()->create();
-    $viewer->teams()->attach($distinctTeam);
+    $viewer->channels()->attach($distinctChannel);
     $author = User::factory()->create(['forenames' => 'Badged', 'surname' => 'Author']);
     $taggedNote = Note::factory()->create(['title' => 'Docker layer cache misses', 'user_id' => $author->id]);
-    $taggedNote->teams()->attach($distinctTeam);
+    $taggedNote->channels()->attach($distinctChannel);
 
     // assertSeeInOrder because a bare assertSee would match the note form's
-    // team checkboxes: the badge renders before the author cell in the row,
+    // channel checkboxes: the badge renders before the author cell in the row,
     // while the form only appears after the table.
     Livewire::actingAs($viewer)
         ->test(NotesIndex::class)
@@ -107,47 +108,68 @@ it('shows team badges when browsing, when searching and when showing all teams',
         ->set('search', 'docker')
         ->assertSeeInOrder(['platform-squad', 'Badged Author'])
         ->set('search', '')
-        ->set('broader', true)
+        ->set('channels', [])
         ->assertSeeInOrder(['platform-squad', 'Badged Author']);
 });
 
-it('scopes browsing to the viewer\'s teams with the same toggle to show all teams', function () {
-    $developers = Team::factory()->create(['name' => 'developers']);
-    $sysadmins = Team::factory()->create(['name' => 'sysadmins']);
+it('scopes browsing to the filtered channels while whole-pot notes always show', function () {
+    $developers = Channel::factory()->create(['name' => 'developers']);
+    $sysadmins = Channel::factory()->create(['name' => 'sysadmins']);
     $developer = User::factory()->create();
-    $developer->teams()->attach($developers);
+    $developer->channels()->attach($developers);
     $developerNote = Note::factory()->create(['title' => 'Docker layer cache misses']);
-    $developerNote->teams()->attach($developers);
+    $developerNote->channels()->attach($developers);
     Note::factory()->create(['title' => 'Compose healthcheck gotcha']);
     $sysadminNote = Note::factory()->create(['title' => 'Docker daemon log rotation']);
-    $sysadminNote->teams()->attach($sysadmins);
+    $sysadminNote->channels()->attach($sysadmins);
 
     Livewire::actingAs($developer)
         ->test(NotesIndex::class)
         ->assertSee('Docker layer cache misses')
         ->assertSee('Compose healthcheck gotcha')
         ->assertDontSee('Docker daemon log rotation')
-        ->set('broader', true)
-        ->assertSee('Docker daemon log rotation');
+        ->set('channels', [$sysadmins->id])
+        ->assertSee('Docker daemon log rotation')
+        ->assertSee('Compose healthcheck gotcha')
+        ->assertDontSee('Docker layer cache misses');
 });
 
-it('honours a broader flag arriving as a url string', function () {
-    $developers = Team::factory()->create(['name' => 'developers']);
-    $sysadmins = Team::factory()->create(['name' => 'sysadmins']);
-    $developer = User::factory()->create();
-    $developer->teams()->attach($developers);
+it('filters to a single channel when its badge is clicked', function () {
+    $developers = Channel::factory()->create(['name' => 'developers']);
+    $sysadmins = Channel::factory()->create(['name' => 'sysadmins']);
+    $viewer = User::factory()->create();
+    $viewer->channels()->attach([$developers->id, $sysadmins->id]);
+    $developerNote = Note::factory()->create(['title' => 'Docker layer cache misses']);
+    $developerNote->channels()->attach($developers);
     $sysadminNote = Note::factory()->create(['title' => 'Docker daemon log rotation']);
-    $sysadminNote->teams()->attach($sysadmins);
+    $sysadminNote->channels()->attach($sysadmins);
 
-    Livewire::actingAs($developer)
-        ->withQueryParams(['search' => 'docker', 'broader' => '1'])
+    Livewire::actingAs($viewer)
         ->test(NotesIndex::class)
-        ->assertSee('Docker daemon log rotation');
+        ->assertSee('Docker layer cache misses')
+        ->assertSee('Docker daemon log rotation')
+        ->call('filterChannel', $sysadmins->id)
+        ->assertSet('channels', [$sysadmins->id])
+        ->assertSee('Docker daemon log rotation')
+        ->assertDontSee('Docker layer cache misses');
+});
 
+it('honours a channel filter arriving as url strings, overriding the subscribed default', function () {
+    $developers = Channel::factory()->create(['name' => 'developers']);
+    $sysadmins = Channel::factory()->create(['name' => 'sysadmins']);
+    $developer = User::factory()->create();
+    $developer->channels()->attach($developers);
+    $developerNote = Note::factory()->create(['title' => 'Docker layer cache misses']);
+    $developerNote->channels()->attach($developers);
+    $sysadminNote = Note::factory()->create(['title' => 'Docker daemon log rotation']);
+    $sysadminNote->channels()->attach($sysadmins);
+
+    // Url-tracked properties arrive as strings - the filter must cast, not trust.
     Livewire::actingAs($developer)
-        ->withQueryParams(['search' => 'docker', 'broader' => '0'])
+        ->withQueryParams(['search' => 'docker', 'channels' => [(string) $sysadmins->id]])
         ->test(NotesIndex::class)
-        ->assertDontSee('Docker daemon log rotation');
+        ->assertSee('Docker daemon log rotation')
+        ->assertDontSee('Docker layer cache misses');
 });
 
 it('tracks the search term in the url so searches are shareable', function () {
@@ -202,14 +224,13 @@ it('announces the result count to screen readers when filtering', function () {
         ->assertSee('2 notes found');
 });
 
-it('returns to the first page when the search or the team scope changes', function () {
+it('returns to the first page when the search or the channel scope changes', function () {
     $reader = User::factory()->create();
     Note::factory()->count(25)->create();
     $matchOnFirstPage = Note::factory()->create(['title' => 'Docker layer cache misses', 'updated_at' => now()->addMinute()]);
 
     Livewire::actingAs($reader)
         ->test(NotesIndex::class)
-        ->set('broader', true)
         ->call('setPage', 2)
         ->assertDontSee('Docker layer cache misses')
         ->set('search', 'docker')
@@ -217,10 +238,8 @@ it('returns to the first page when the search or the team scope changes', functi
 
     Livewire::actingAs($reader)
         ->test(NotesIndex::class)
-        ->set('broader', true)
         ->call('setPage', 2)
         ->assertDontSee($matchOnFirstPage->title)
-        ->set('broader', false)
-        ->set('broader', true)
+        ->set('channels', [])
         ->assertSee($matchOnFirstPage->title);
 });
