@@ -35,7 +35,7 @@ it('previews an upload into an empty install: all new, nothing matched', functio
         ->set('file', UploadedFile::fake()->createWithContent('export.json', file_get_contents(base_path('tests/fixtures/export-v1.json'))))
         ->assertSee('3 new notes')
         ->assertSee('2 authors')
-        ->assertSee('2 teams')
+        ->assertSee('2 channels')
         ->assertDontSee('already here and unchanged');
 });
 
@@ -75,7 +75,7 @@ it('shows drifted matches with a skip default and passes overwrite choices to th
         ->assertSee('Changed since the file was made')
         ->assertSee('Drifted local title')
         ->assertSee('How to install the puppet client on Rocky Linux')
-        ->assertSee('title, body, teams, author, timestamps')
+        ->assertSee('title, body, channels, author, timestamps')
         ->assertSet('decisions.01ARZ3NDEKTSV4RRFFQ69G5FA2', 'skip')
         ->set('decisions.01ARZ3NDEKTSV4RRFFQ69G5FA2', 'overwrite')
         ->call('import')

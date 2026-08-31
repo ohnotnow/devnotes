@@ -87,10 +87,10 @@ class Note extends Model
         return $this->belongsTo(User::class);
     }
 
-    /** @return BelongsToMany<Team, $this> */
-    public function teams(): BelongsToMany
+    /** @return BelongsToMany<Channel, $this> */
+    public function channels(): BelongsToMany
     {
-        return $this->belongsToMany(Team::class);
+        return $this->belongsToMany(Channel::class);
     }
 
     /** @return HasMany<Activity, $this> */
@@ -100,22 +100,47 @@ class Note extends Model
     }
 
     /**
-     * Notes as the given user sees them by default: their subscribed teams'
-     * notes plus teamless whole-pot notes, or everything when the user
-     * subscribes to no teams.
+     * Notes as the given user sees them by default: their subscribed
+     * channels' notes plus channel-less whole-pot notes, or everything when
+     * the user subscribes to no channels.
+     *
+     * @param  Builder<Note>  $query
      */
-    public function scopeInTeamsOf(Builder $query, User $user): void
+    public function scopeInChannelsOf(Builder $query, User $user): void
     {
-        $subscribedTeamIds = $user->subscribedTeams()->pluck('teams.id');
+        $query->inChannels($user->subscribedChannels()->pluck('channels.id')->all());
+    }
 
-        if ($subscribedTeamIds->isEmpty()) {
+    /**
+     * Only notes in the given channels, plus channel-less whole-pot notes -
+     * a channel filter never hides a note meant for everyone. An empty list
+     * means no filter at all.
+     *
+     * @param  array<int>  $channelIds
+     */
+    public function scopeInChannels(Builder $query, array $channelIds): void
+    {
+        if ($channelIds === []) {
             return;
         }
 
-        $query->where(function (Builder $query) use ($subscribedTeamIds) {
-            $query->whereDoesntHave('teams')
-                ->orWhereHas('teams', fn ($teams) => $teams->whereIn('teams.id', $subscribedTeamIds));
+        $query->where(function (Builder $query) use ($channelIds) {
+            $query->whereDoesntHave('channels')
+                ->orWhereHas('channels', fn ($channels) => $channels->whereIn('channels.id', $channelIds));
         });
+    }
+
+    /**
+     * Every search word must appear in the title or body, in any order,
+     * matched as a partial ('liber' finds 'libero').
+     */
+    public function scopeSearchWords(Builder $query, string $search): void
+    {
+        foreach (Str::of($search)->squish()->explode(' ')->filter() as $word) {
+            $query->where(fn ($query) => $query
+                ->whereLike('title', "%{$word}%")
+                ->orWhereLike('body', "%{$word}%"));
+        }
     }
 
     protected function renderedBody(): Attribute
@@ -124,7 +149,7 @@ class Note extends Model
     }
 
     /**
-     * Search notes as the given user sees them (see scopeInTeamsOf), or
+     * Search notes as the given user sees them (see scopeInChannelsOf), or
      * everything when broader. Every search word must appear in the title
      * or body, in any order, matched as a partial ('liber' finds 'libero').
      * Most recently updated first.
@@ -133,23 +158,16 @@ class Note extends Model
      */
     public static function searchScoped(User $user, string $search, bool $broader = false): Builder
     {
-        $query = static::with(['user', 'teams'])
-            ->when(! $broader, fn ($query) => $query->inTeamsOf($user))
+        return static::with(['user', 'channels'])
+            ->when(! $broader, fn ($query) => $query->inChannelsOf($user))
             ->orderByDesc('updated_at')
-            ->orderByDesc('id');
-
-        foreach (Str::of($search)->squish()->explode(' ')->filter() as $word) {
-            $query->where(fn ($query) => $query
-                ->whereLike('title', "%{$word}%")
-                ->orWhereLike('body', "%{$word}%"));
-        }
-
-        return $query;
+            ->orderByDesc('id')
+            ->searchWords($search);
     }
 
     /**
      * The notes sharing the most meaningful words with the given title, as
-     * the user sees the pot (see scopeInTeamsOf) - the "did you search
+     * the user sees the pot (see scopeInChannelsOf) - the "did you search
      * first?" nudge behind add-note. Words under four characters are too
      * common to signal similarity, so they are skipped, and a note needs a
      * similarity score of at least 2 (see similarityScore) - one stray word
@@ -170,7 +188,7 @@ class Note extends Model
         }
 
         $candidates = static::query()
-            ->inTeamsOf($user)
+            ->inChannelsOf($user)
             ->where(function ($query) use ($words) {
                 foreach ($words as $word) {
                     $query->orWhere(fn ($query) => $query
@@ -205,13 +223,14 @@ class Note extends Model
     }
 
     /**
-     * Attach the given teams, or the author's note defaults when none given.
-     * Create paths only - on update, sync the explicit selection instead
-     * (calling this with null would reset a note to the author's defaults).
+     * Attach the given channels, or the author's note defaults when none
+     * given. Create paths only - on update, sync the explicit selection
+     * instead (calling this with null would reset a note to the author's
+     * defaults).
      */
-    public function assignTeams(?array $teamIds = null): void
+    public function assignChannels(?array $channelIds = null): void
     {
-        $this->teams()->sync($teamIds ?? $this->user->defaultNoteTeams()->pluck('teams.id')->all());
+        $this->channels()->sync($channelIds ?? $this->user->defaultNoteChannels()->pluck('channels.id')->all());
     }
 
     /**
@@ -225,7 +244,7 @@ class Note extends Model
         return [
             'version' => 1,
             'notes' => ExportNoteResource::collection(
-                static::withTrashed()->with(['user', 'teams', 'activities.user'])->orderBy('id')->get()
+                static::withTrashed()->with(['user', 'channels', 'activities.user'])->orderBy('id')->get()
             )->resolve(),
         ];
     }

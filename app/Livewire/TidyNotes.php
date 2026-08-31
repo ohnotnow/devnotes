@@ -23,7 +23,7 @@ class TidyNotes extends Component
 
         return view('livewire.tidy-notes', [
             'showingAll' => $showingAll,
-            'previewNote' => $this->previewNoteId ? Note::with(['user', 'teams'])->find($this->previewNoteId) : null,
+            'previewNote' => $this->previewNoteId ? Note::with(['user', 'channels'])->find($this->previewNoteId) : null,
             'notes' => Note::with('user')
                 ->when(! $showingAll, fn ($query) => $query->where('user_id', auth()->id()))
                 ->orderBy('read_count')

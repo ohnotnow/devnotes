@@ -29,14 +29,14 @@
                     @can('admin')
                         <flux:separator class="my-2" />
                         <flux:sidebar.item icon="users" :href="route('admin.users')" wire:navigate>Users</flux:sidebar.item>
-                        <flux:sidebar.item icon="user-group" :href="route('admin.teams')" wire:navigate>Teams</flux:sidebar.item>
+                        <flux:sidebar.item icon="hashtag" :href="route('admin.channels')" wire:navigate>Channels</flux:sidebar.item>
                         <flux:sidebar.item icon="arrow-up-tray" :href="route('admin.import')" wire:navigate>Import</flux:sidebar.item>
                         <flux:sidebar.item icon="clock" :href="route('admin.activity')" wire:navigate>Activity</flux:sidebar.item>
                     @endcan
                 </flux:sidebar.nav>
                 <flux:sidebar.spacer />
                 <flux:sidebar.nav aria-label="Account">
-                    <flux:sidebar.item icon="user-group" :href="route('team-settings')" wire:navigate>My teams</flux:sidebar.item>
+                    <flux:sidebar.item icon="hashtag" :href="route('channel-settings')" wire:navigate>My channels</flux:sidebar.item>
                     <flux:sidebar.item icon="key" :href="route('api-tokens')" wire:navigate>API tokens</flux:sidebar.item>
                     @if (! config('sso.enabled'))
                         <flux:sidebar.item icon="lock-closed" :href="route('change-password')" wire:navigate>Change password</flux:sidebar.item>

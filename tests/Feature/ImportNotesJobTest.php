@@ -3,35 +3,35 @@
 use App\Enums\ActivityAction;
 use App\Jobs\ImportNotes;
 use App\Models\Activity;
+use App\Models\Channel;
 use App\Models\Note;
-use App\Models\Team;
 use App\Models\User;
 use Illuminate\Support\Facades\Storage;
 
-it('recreates exported notes with their ulids, codes, authors, teams, timestamps and deleted state', function () {
+it('recreates exported notes with their ulids, codes, authors, channels, timestamps and deleted state', function () {
     Storage::fake('local');
     Storage::disk('local')->put('imports/export.json', file_get_contents(base_path('tests/fixtures/export-v1.json')));
 
     $report = (new ImportNotes('local', 'imports/export.json'))->handle();
 
     expect(Note::withTrashed()->count())->toBe(3);
-    $teamNote = Note::where('code', 'abq4x')->sole();
-    expect($teamNote->ulid)->toBe('01ARZ3NDEKTSV4RRFFQ69G5FA2');
-    expect($teamNote->title)->toBe('How to install the puppet client on Rocky Linux');
-    expect($teamNote->user->email)->toBe('author@example.com');
-    expect($teamNote->user->is_admin)->toBeFalse();
-    expect($teamNote->user->is_staff)->toBeTrue();
-    expect($teamNote->teams->pluck('name')->sort()->values()->all())->toBe(['developers', 'sysadmins']);
-    expect($teamNote->created_at->toJSON())->toBe('2026-08-15T10:00:00.000000Z');
-    expect($teamNote->updated_at->toJSON())->toBe('2026-08-15T10:00:00.000000Z');
-    expect(Note::where('code', 'aq2b3')->sole()->teams)->toBeEmpty();
+    $channelNote = Note::where('code', 'abq4x')->sole();
+    expect($channelNote->ulid)->toBe('01ARZ3NDEKTSV4RRFFQ69G5FA2');
+    expect($channelNote->title)->toBe('How to install the puppet client on Rocky Linux');
+    expect($channelNote->user->email)->toBe('author@example.com');
+    expect($channelNote->user->is_admin)->toBeFalse();
+    expect($channelNote->user->is_staff)->toBeTrue();
+    expect($channelNote->channels->pluck('name')->sort()->values()->all())->toBe(['developers', 'sysadmins']);
+    expect($channelNote->created_at->toJSON())->toBe('2026-08-15T10:00:00.000000Z');
+    expect($channelNote->updated_at->toJSON())->toBe('2026-08-15T10:00:00.000000Z');
+    expect(Note::where('code', 'aq2b3')->sole()->channels)->toBeEmpty();
     $deletedNote = Note::withTrashed()->where('code', 'zde77')->sole();
     expect($deletedNote->deleted_at->toJSON())->toBe('2026-08-15T10:00:00.000000Z');
     expect($deletedNote->user->is_admin)->toBeTrue();
-    expect($deletedNote->teams)->toBeEmpty();
+    expect($deletedNote->channels)->toBeEmpty();
     expect(User::count())->toBe(2);
-    expect(Team::orderBy('name')->pluck('name')->all())->toBe(['developers', 'sysadmins']);
-    expect($report)->toBe(['imported' => 3, 'skipped' => [], 'overwritten' => [], 'recoded' => [], 'users_created' => 2, 'teams_created' => 2]);
+    expect(Channel::orderBy('name')->pluck('name')->all())->toBe(['developers', 'sysadmins']);
+    expect($report)->toBe(['imported' => 3, 'skipped' => [], 'overwritten' => [], 'recoded' => [], 'users_created' => 2, 'channels_created' => 2]);
 });
 
 it('recreates read data and activity history from the export file', function () {
@@ -40,11 +40,11 @@ it('recreates read data and activity history from the export file', function () 
 
     (new ImportNotes('local', 'imports/export.json'))->handle();
 
-    $teamNote = Note::where('code', 'abq4x')->sole();
-    expect($teamNote->read_count)->toBe(3);
-    expect($teamNote->last_read_at->toJSON())->toBe('2026-08-15T09:00:00.000000Z');
-    expect($teamNote->activities)->toHaveCount(2);
-    $createdActivity = $teamNote->activities()->where('ulid', '01ARZ3NDEKTSV4RRFFQ69G5AA1')->sole();
+    $channelNote = Note::where('code', 'abq4x')->sole();
+    expect($channelNote->read_count)->toBe(3);
+    expect($channelNote->last_read_at->toJSON())->toBe('2026-08-15T09:00:00.000000Z');
+    expect($channelNote->activities)->toHaveCount(2);
+    $createdActivity = $channelNote->activities()->where('ulid', '01ARZ3NDEKTSV4RRFFQ69G5AA1')->sole();
     expect($createdActivity->user->email)->toBe('author@example.com');
     expect($createdActivity->action)->toBe(ActivityAction::Created);
     expect($createdActivity->description)->toBe("created note #abq4x 'How to install the puppet client on Rocky Linux'");
@@ -78,9 +78,9 @@ it('imports an older export file that predates read data and activity history', 
     $report = (new ImportNotes('local', 'imports/old.json'))->handle();
 
     expect($report['imported'])->toBe(3);
-    $teamNote = Note::where('code', 'abq4x')->sole();
-    expect($teamNote->read_count)->toBe(0);
-    expect($teamNote->last_read_at)->toBeNull();
+    $channelNote = Note::where('code', 'abq4x')->sole();
+    expect($channelNote->read_count)->toBe(0);
+    expect($channelNote->last_read_at)->toBeNull();
     expect(Activity::count())->toBe(0);
 });
 
@@ -93,10 +93,10 @@ it('imports nothing on a re-import and reports every code as skipped', function 
     Storage::disk('local')->put('imports/second.json', $fixture);
     $report = (new ImportNotes('local', 'imports/second.json'))->handle();
 
-    expect($report)->toBe(['imported' => 0, 'skipped' => ['aq2b3', 'abq4x', 'zde77'], 'overwritten' => [], 'recoded' => [], 'users_created' => 0, 'teams_created' => 0]);
+    expect($report)->toBe(['imported' => 0, 'skipped' => ['aq2b3', 'abq4x', 'zde77'], 'overwritten' => [], 'recoded' => [], 'users_created' => 0, 'channels_created' => 0]);
     expect(Note::withTrashed()->count())->toBe(3);
     expect(User::count())->toBe(2);
-    expect(Team::count())->toBe(2);
+    expect(Channel::count())->toBe(2);
 });
 
 it('overwrites a matched note from the file when its ulid is in the overwrite list', function () {
@@ -106,7 +106,7 @@ it('overwrites a matched note from the file when its ulid is in the overwrite li
     (new ImportNotes('local', 'imports/first.json'))->handle();
     $driftedNote = Note::where('code', 'abq4x')->sole();
     $driftedNote->update(['title' => 'Drifted title', 'body' => 'Drifted body']);
-    $driftedNote->teams()->detach();
+    $driftedNote->channels()->detach();
 
     Storage::disk('local')->put('imports/second.json', $fixture);
     $report = (new ImportNotes('local', 'imports/second.json', overwriteUlids: ['01ARZ3NDEKTSV4RRFFQ69G5FA2']))->handle();
@@ -116,7 +116,7 @@ it('overwrites a matched note from the file when its ulid is in the overwrite li
     expect($report['imported'])->toBe(0);
     $restoredNote = Note::where('code', 'abq4x')->sole();
     expect($restoredNote->title)->toBe('How to install the puppet client on Rocky Linux');
-    expect($restoredNote->teams->pluck('name')->sort()->values()->all())->toBe(['developers', 'sysadmins']);
+    expect($restoredNote->channels->pluck('name')->sort()->values()->all())->toBe(['developers', 'sysadmins']);
     expect($restoredNote->updated_at->toJSON())->toBe('2026-08-15T10:00:00.000000Z');
     expect($restoredNote->ulid)->toBe('01ARZ3NDEKTSV4RRFFQ69G5FA2');
     expect(Note::withTrashed()->count())->toBe(3);

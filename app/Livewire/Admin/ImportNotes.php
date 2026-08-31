@@ -3,8 +3,8 @@
 namespace App\Livewire\Admin;
 
 use App\Jobs\ImportNotes as ImportNotesJob;
+use App\Models\Channel;
 use App\Models\Note;
-use App\Models\Team;
 use App\Models\User;
 use Flux\Flux;
 use Illuminate\Support\Facades\Auth;
@@ -88,7 +88,7 @@ class ImportNotes extends Component
     private function buildPreview(array $exportedNotes): array
     {
         $exported = collect($exportedNotes);
-        $existingByUlid = Note::withTrashed()->with(['user', 'teams'])
+        $existingByUlid = Note::withTrashed()->with(['user', 'channels'])
             ->whereIn('ulid', $exported->pluck('ulid'))->get()->keyBy('ulid');
         $takenCodes = Note::withTrashed()->whereIn('code', $exported->pluck('code'))->pluck('code');
 
@@ -102,8 +102,8 @@ class ImportNotes extends Component
             'identical_count' => $identical->count(),
             'users_to_create' => $exported->pluck('author.email')->unique()
                 ->diff(User::whereIn('email', $exported->pluck('author.email'))->pluck('email'))->count(),
-            'teams_to_create' => $exported->pluck('teams')->flatten()->unique()
-                ->diff(Team::pluck('name'))->count(),
+            'channels_to_create' => $exported->pluck('channels')->flatten()->unique()
+                ->diff(Channel::pluck('name'))->count(),
             'matches' => $drifted->map(fn (array $note): array => [
                 'ulid' => $note['ulid'],
                 'code' => $existingByUlid[$note['ulid']]->code,
@@ -135,8 +135,8 @@ class ImportNotes extends Component
             $differs[] = 'body';
         }
 
-        if ($existingNote->teams->pluck('name')->sort()->values()->all() !== collect($exportedNote['teams'])->sort()->values()->all()) {
-            $differs[] = 'teams';
+        if ($existingNote->channels->pluck('name')->sort()->values()->all() !== collect($exportedNote['channels'])->sort()->values()->all()) {
+            $differs[] = 'channels';
         }
 
         if ($existingNote->user->email !== $exportedNote['author']['email']) {

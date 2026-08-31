@@ -2,8 +2,8 @@
 
 use App\Enums\ActivityAction;
 use App\Models\Activity;
+use App\Models\Channel;
 use App\Models\Note;
-use App\Models\Team;
 use App\Models\User;
 use Illuminate\Support\Carbon;
 
@@ -22,8 +22,8 @@ it('builds a versioned export payload matching the golden master', function () {
         'surname' => 'Author',
         'is_staff' => true,
     ]);
-    $developers = Team::factory()->create(['name' => 'developers']);
-    $sysadmins = Team::factory()->create(['name' => 'sysadmins']);
+    $developers = Channel::factory()->create(['name' => 'developers']);
+    $sysadmins = Channel::factory()->create(['name' => 'sysadmins']);
     Note::factory()->create([
         'ulid' => '01ARZ3NDEKTSV4RRFFQ69G5FA1',
         'code' => 'aq2b3',
@@ -31,7 +31,7 @@ it('builds a versioned export payload matching the golden master', function () {
         'body' => "Runs in the whole pot.\n\nSee the [docs](https://example.com/docs) for more.",
         'user_id' => $author->id,
     ]);
-    $teamNote = Note::factory()->create([
+    $channelNote = Note::factory()->create([
         'ulid' => '01ARZ3NDEKTSV4RRFFQ69G5FA2',
         'code' => 'abq4x',
         'title' => 'How to install the puppet client on Rocky Linux',
@@ -40,18 +40,18 @@ it('builds a versioned export payload matching the golden master', function () {
         'read_count' => 3,
         'last_read_at' => '2026-08-15 09:00:00',
     ]);
-    $teamNote->teams()->attach([$sysadmins->id, $developers->id]);
+    $channelNote->channels()->attach([$sysadmins->id, $developers->id]);
     Activity::factory()->create([
         'ulid' => '01ARZ3NDEKTSV4RRFFQ69G5AA1',
         'user_id' => $author->id,
-        'note_id' => $teamNote->id,
+        'note_id' => $channelNote->id,
         'action' => ActivityAction::Created,
         'description' => "created note #abq4x 'How to install the puppet client on Rocky Linux'",
     ]);
     Activity::factory()->create([
         'ulid' => '01ARZ3NDEKTSV4RRFFQ69G5AA2',
         'user_id' => $adminAuthor->id,
-        'note_id' => $teamNote->id,
+        'note_id' => $channelNote->id,
         'action' => ActivityAction::Read,
         'description' => "read note #abq4x 'How to install the puppet client on Rocky Linux'",
     ]);

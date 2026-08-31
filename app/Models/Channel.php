@@ -2,22 +2,28 @@
 
 namespace App\Models;
 
-use Database\Factories\TeamFactory;
+use Database\Factories\ChannelFactory;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 
 #[Fillable(['name'])]
-class Team extends Model
+class Channel extends Model
 {
-    /** @use HasFactory<TeamFactory> */
+    /** @use HasFactory<ChannelFactory> */
     use HasFactory;
 
     /** @return BelongsToMany<User, $this> */
     public function users(): BelongsToMany
     {
         return $this->belongsToMany(User::class)->withPivot(['subscribed', 'note_default']);
+    }
+
+    /** @return BelongsToMany<User, $this> */
+    public function subscribers(): BelongsToMany
+    {
+        return $this->users()->wherePivot('subscribed', true);
     }
 
     /** @return BelongsToMany<Note, $this> */
@@ -31,7 +37,7 @@ class Team extends Model
      * hues (sky/blue/cyan etc.) are left out so neighbouring badges stay
      * tellable-apart when skimming the notes list.
      *
-     * The order is deliberately scrambled: teams tend to be created in one
+     * The order is deliberately scrambled: channels tend to be created in one
      * sitting, so consecutive ids must land on distant hues. Do not re-sort
      * this list into colour-wheel or alphabetical order.
      */

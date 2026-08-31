@@ -80,10 +80,10 @@
                         #{{ $previewNote->code }}, by {{ $previewNote->user->full_name }},
                         created {{ $previewNote->created_at->diffForHumans() }}@if (! $previewNote->updated_at->equalTo($previewNote->created_at)), updated {{ $previewNote->updated_at->diffForHumans() }}@endif
                     </flux:text>
-                    @if ($previewNote->teams->isNotEmpty())
+                    @if ($previewNote->channels->isNotEmpty())
                         <div class="mt-2 flex gap-2">
-                            @foreach ($previewNote->teams as $team)
-                                <flux:badge :color="$team->colour()" size="sm">{{ $team->name }}</flux:badge>
+                            @foreach ($previewNote->channels as $channel)
+                                <flux:badge :color="$channel->colour()" size="sm">{{ $channel->name }}</flux:badge>
                             @endforeach
                         </div>
                     @endif

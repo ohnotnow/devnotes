@@ -2,8 +2,8 @@
 
 namespace App\Livewire;
 
+use App\Models\Channel;
 use App\Models\Note;
-use App\Models\Team;
 use Flux\Flux;
 use Illuminate\Support\Arr;
 use Livewire\Attributes\On;
@@ -17,7 +17,7 @@ class NoteForm extends Component
         'body' => '',
     ];
 
-    public array $selectedTeamIds = [];
+    public array $selectedChannelIds = [];
 
     protected array $validationAttributes = [
         'editing.title' => 'title',
@@ -27,7 +27,7 @@ class NoteForm extends Component
     public function render()
     {
         return view('livewire.note-form', [
-            'teams' => Team::orderBy('name')->get(),
+            'channels' => Channel::orderBy('name')->get(),
         ]);
     }
 
@@ -35,7 +35,7 @@ class NoteForm extends Component
     public function openCreate(): void
     {
         $this->reset('editing');
-        $this->selectedTeamIds = auth()->user()->defaultNoteTeams()->pluck('teams.id')->all();
+        $this->selectedChannelIds = auth()->user()->defaultNoteChannels()->pluck('channels.id')->all();
         $this->resetValidation();
 
         Flux::modal('note-editor')->show();
@@ -46,7 +46,7 @@ class NoteForm extends Component
     {
         $note = Note::findOrFail($id);
         $this->editing = $note->only(['id', 'title', 'body']);
-        $this->selectedTeamIds = $note->teams()->pluck('teams.id')->all();
+        $this->selectedChannelIds = $note->channels()->pluck('channels.id')->all();
         $this->resetValidation();
 
         Flux::modal('note-editor')->show();
@@ -57,8 +57,8 @@ class NoteForm extends Component
         $this->validate([
             'editing.title' => ['required', 'string', 'max:255'],
             'editing.body' => ['required', 'string'],
-            'selectedTeamIds' => ['array'],
-            'selectedTeamIds.*' => ['exists:teams,id'],
+            'selectedChannelIds' => ['array'],
+            'selectedChannelIds.*' => ['exists:channels,id'],
         ]);
 
         $note = Note::findOrNew($this->editing['id']);
@@ -67,7 +67,7 @@ class NoteForm extends Component
             $note->user_id = auth()->id();
         }
         $note->save();
-        $note->teams()->sync($this->selectedTeamIds);
+        $note->channels()->sync($this->selectedChannelIds);
 
         Flux::modal('note-editor')->close();
         Flux::toast("Saved note #{$note->code}", variant: 'success');

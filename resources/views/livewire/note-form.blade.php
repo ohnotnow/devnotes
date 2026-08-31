@@ -13,10 +13,10 @@
 
         <flux:textarea wire:model="editing.body" label="Note" rows="12" placeholder="What happened, what fixed it, links to anything useful..." />
 
-        @if ($teams->isNotEmpty())
-            <flux:checkbox.group wire:model="selectedTeamIds" label="Teams" description="Which teams' searches should surface this note. Untick everything for a note every team sees.">
-                @foreach ($teams as $team)
-                    <flux:checkbox :value="$team->id" :label="$team->name" wire:key="team-{{ $team->id }}" />
+        @if ($channels->isNotEmpty())
+            <flux:checkbox.group wire:model="selectedChannelIds" label="Channels" description="Which channels' searches should surface this note. Untick everything for a note everyone's search sees.">
+                @foreach ($channels as $channel)
+                    <flux:checkbox :value="$channel->id" :label="$channel->name" wire:key="channel-{{ $channel->id }}" />
                 @endforeach
             </flux:checkbox.group>
         @endif

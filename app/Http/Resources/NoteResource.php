@@ -21,7 +21,7 @@ class NoteResource extends JsonResource
             'title' => $this->title,
             'body' => $this->body,
             'author' => $this->user->full_name,
-            'teams' => $this->teams->pluck('name')->all(),
+            'channels' => $this->channels->pluck('name')->all(),
             'created_at' => $this->created_at,
             'updated_at' => $this->updated_at,
             'deleted_at' => $this->deleted_at,

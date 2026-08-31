@@ -1,8 +1,8 @@
 <?php
 
+use App\Models\Channel;
 use App\Models\Note;
 use App\Models\OAuthUser;
-use App\Models\Team;
 use App\Models\User;
 use Illuminate\Support\Facades\Config;
 use Laravel\Passport\Client;
@@ -130,11 +130,11 @@ it('authenticates a real bearer token through the passport guard and oauth_users
 });
 
 it('embeds a recent-notes digest for the authenticated user in the handshake instructions', function () {
-    $developers = Team::factory()->create(['name' => 'developers']);
+    $developers = Channel::factory()->create(['name' => 'developers']);
     $developer = User::factory()->create();
-    $developer->teams()->attach($developers);
-    $teamNote = Note::factory()->create(['title' => 'Docker layer cache misses']);
-    $teamNote->teams()->attach($developers);
+    $developer->channels()->attach($developers);
+    $channelNote = Note::factory()->create(['title' => 'Docker layer cache misses']);
+    $channelNote->channels()->attach($developers);
     Passport::actingAs(OAuthUser::findOrFail($developer->id));
 
     $response = $this->postJson('/mcp', [
@@ -151,22 +151,22 @@ it('embeds a recent-notes digest for the authenticated user in the handshake ins
     $response->assertSuccessful();
     $instructions = $response->json('result.instructions');
     expect($instructions)->toContain('call search-notes BEFORE debugging');
-    expect($instructions)->toContain('#'.$teamNote->code);
+    expect($instructions)->toContain('#'.$channelNote->code);
     expect($instructions)->toContain('Docker layer cache misses');
     // Absolute date, not "18 hours ago": clients cache instructions at connect
     // time, so relative ages go quietly stale for the life of the connection.
-    expect($instructions)->toContain('(developers, '.$teamNote->updated_at->toDateString().')');
+    expect($instructions)->toContain('(developers, '.$channelNote->updated_at->toDateString().')');
     expect($instructions)->toContain('The pot has 1 note in total');
 });
 
-it('keeps other teams notes out of the digest but includes teamless ones', function () {
-    $developers = Team::factory()->create(['name' => 'developers']);
-    $sysadmins = Team::factory()->create(['name' => 'sysadmins']);
+it('keeps other channels notes out of the digest but includes channel-less ones', function () {
+    $developers = Channel::factory()->create(['name' => 'developers']);
+    $sysadmins = Channel::factory()->create(['name' => 'sysadmins']);
     $developer = User::factory()->create();
-    $developer->teams()->attach($developers);
-    $teamlessNote = Note::factory()->create(['title' => 'Compose healthcheck gotcha']);
+    $developer->channels()->attach($developers);
+    $channellessNote = Note::factory()->create(['title' => 'Compose healthcheck gotcha']);
     $sysadminNote = Note::factory()->create(['title' => 'Daemon log rotation']);
-    $sysadminNote->teams()->attach($sysadmins);
+    $sysadminNote->channels()->attach($sysadmins);
     Passport::actingAs(OAuthUser::findOrFail($developer->id));
 
     $response = $this->postJson('/mcp', [
@@ -181,7 +181,7 @@ it('keeps other teams notes out of the digest but includes teamless ones', funct
     ]);
 
     $instructions = $response->json('result.instructions');
-    expect($instructions)->toContain($teamlessNote->title);
+    expect($instructions)->toContain($channellessNote->title);
     expect($instructions)->not->toContain($sysadminNote->title);
 });
 
@@ -209,12 +209,12 @@ it('keeps trashed notes out of the digest and its pot count', function () {
     expect($instructions)->toContain('The pot has 1 note in total');
 });
 
-it('digests the whole pot for a user with no team subscriptions', function () {
-    $sysadmins = Team::factory()->create(['name' => 'sysadmins']);
-    $userWithoutTeams = User::factory()->create();
+it('digests the whole pot for a user with no channel subscriptions', function () {
+    $sysadmins = Channel::factory()->create(['name' => 'sysadmins']);
+    $userWithoutChannels = User::factory()->create();
     $sysadminNote = Note::factory()->create(['title' => 'Daemon log rotation']);
-    $sysadminNote->teams()->attach($sysadmins);
-    Passport::actingAs(OAuthUser::findOrFail($userWithoutTeams->id));
+    $sysadminNote->channels()->attach($sysadmins);
+    Passport::actingAs(OAuthUser::findOrFail($userWithoutChannels->id));
 
     $response = $this->postJson('/mcp', [
         'jsonrpc' => '2.0',

@@ -42,7 +42,7 @@ Everything under `/api/v1` uses [Laravel Sanctum](https://laravel.com/docs/sanct
 curl -H "Authorization: Bearer $TOKEN" https://your-devnotes-host/api/v1/notes?search=livewire
 ```
 
-The usual REST verbs work: list and search notes, fetch one, create, update (send the full payload, not a partial), and delete. Deletes are soft: the note disappears from listings and search, but fetching it by code still works and the response carries a `deleted_at` timestamp - so `#code` references keep resolving. `GET /api/v1/teams` lists every team's id and name, for clients that want to pass `team_ids` when creating or updating notes.
+The usual REST verbs work: list and search notes, fetch one, create, update (send the full payload, not a partial), and delete. Deletes are soft: the note disappears from listings and search, but fetching it by code still works and the response carries a `deleted_at` timestamp - so `#code` references keep resolving. `GET /api/v1/channels` lists every channel's id and name, for clients that want to pass `channel_ids` when creating or updating notes.
 
 ## The MCP server
 
@@ -52,7 +52,7 @@ The MCP endpoint lives at `/mcp` and authenticates with OAuth 2.1. The client di
 claude mcp add --transport http devnotes https://your-devnotes-host/mcp
 ```
 
-Agents get four tools: `search-notes` (code, title and a short snippet per hit, scoped to your teams with a `broader: true` escape hatch), `get-note` (the full markdown, accepts `abq4x` or `#abq4x`; a deleted note still comes back, flagged with its `deleted_at`), `add-note` (returns the new note's code, tagging the note with your default teams or the team names you pass), and `update-note` (changes a note's title or body by code, so a finding that evolves mid-session updates the existing note instead of spawning a near-duplicate). When `add-note` spots similar-titled notes already in your teams, its response lists them under `similar_notes` with a hint to merge via `update-note` - the note is still created, capture is never blocked. The server's instructions nudge agents to search before debugging from scratch and to suggest capturing a note when a session solves something gnarly - and they carry a per-user digest of the ten most recently updated notes in your teams, so every new session starts with recent team knowledge already in context.
+Agents get four tools: `search-notes` (code, title and a short snippet per hit, scoped to your subscribed channels with a `broader: true` escape hatch), `get-note` (the full markdown, accepts `abq4x` or `#abq4x`; a deleted note still comes back, flagged with its `deleted_at`), `add-note` (returns the new note's code, posting the note to your default channels or the channel names you pass), and `update-note` (changes a note's title or body by code, so a finding that evolves mid-session updates the existing note instead of spawning a near-duplicate). When `add-note` spots similar-titled notes already in your channels, its response lists them under `similar_notes` with a hint to merge via `update-note` - the note is still created, capture is never blocked. The server's instructions nudge agents to search before debugging from scratch and to suggest capturing a note when a session solves something gnarly - and they carry a per-user digest of the ten most recently updated notes in your channels, so every new session starts with recent team knowledge already in context.
 
 The OAuth keys come from `php artisan passport:keys` (run it once per environment). On hosts with ephemeral filesystems - Laravel Cloud, Kubernetes, swarm and friends - generate a keypair once and hand it to Passport through the env names it already knows:
 
@@ -72,9 +72,9 @@ While you are developing, `config/mcp.php` allows any redirect domain; lock that
 
 Search is a plain SQL `LIKE` query over titles and bodies - no search engine, no index, no extra moving parts. Every word in your search must appear somewhere in the note, in any order, and partial words match: `liber` finds "libero", `pivot updat` finds "Updating pivot tables". Results come back most recently updated first. At the size of pot this app is for, that's all it needs.
 
-## Teams
+## Channels
 
-Still one pot, but with tuned recall for mixed departments: notes and people can carry teams, and search shows your teams' notes plus any note with no team at all. Nothing is ever hidden - browsing, note pages, and `#code` references ignore teams entirely, and anyone can still read and edit everything. When a scoped search misses, every surface has a broader switch: a toggle next to the web search box, `broader: true` on the MCP tool, `?broader=1` on the API. New notes default to their author's teams, overridable per note. You tune your own subscriptions at `/settings/teams`; admins manage teams and memberships at `/admin/teams`. If you never create a team, nothing changes.
+Still one pot, but with tuned recall for mixed departments: notes and people can carry channels, and search shows your channels' notes plus any note with no channel at all. Nothing is ever hidden - browsing, note pages, and `#code` references ignore channels entirely, and anyone can still read and edit everything. When a scoped search misses, every surface has a broader switch: a toggle next to the web search box, `broader: true` on the MCP tool, `?broader=1` on the API. New notes default to their author's channels, overridable per note. You tune your own subscriptions at `/settings/channels`; admins manage channels and memberships at `/admin/channels`. If you never create a channel, nothing changes.
 
 ## Tidying the pot
 
@@ -98,7 +98,7 @@ php artisan devnotes:import devnotes-backup.json
 
 Admins can also import through the web UI at Import in the sidebar: upload the file, get a preview of exactly what will happen (new notes, notes already here with a keep-or-take-the-file's-version choice per note, codes that will be re-minted), then confirm. The web import runs on the queue, so installs without queue workers should set `QUEUE_CONNECTION=sync` in `.env` - the job then runs in-process (it is `sync`, not `null`, which silently discards jobs).
 
-Notes travel with their reference code and a hidden machine identity (a ulid), so `#code` cross-references keep working - including when you merge two teams' pots into one install. Notes the install already has (matched by ulid) are skipped and reported, so re-running an import is always safe. A genuinely new note whose code happens to be taken gets a fresh code minted, and the report tells you so you can tidy any prose that referenced it. Authors the install doesn't know are created from the file (email, name, and the staff/admin flags - passwords and API tokens never travel) and SSO fills in the rest when they first log in. Teams are matched or created by name. The exact file format is pinned, byte for byte, by `tests/fixtures/export-v1.json`.
+Notes travel with their reference code and a hidden machine identity (a ulid), so `#code` cross-references keep working - including when you merge two teams' pots into one install. Notes the install already has (matched by ulid) are skipped and reported, so re-running an import is always safe. A genuinely new note whose code happens to be taken gets a fresh code minted, and the report tells you so you can tidy any prose that referenced it. Authors the install doesn't know are created from the file (email, name, and the staff/admin flags - passwords and API tokens never travel) and SSO fills in the rest when they first log in. Channels are matched or created by name. The exact file format is pinned, byte for byte, by `tests/fixtures/export-v1.json`.
 
 ## Running tests
 

@@ -46,22 +46,22 @@ class User extends Authenticatable
         return $this->hasMany(Note::class);
     }
 
-    /** @return BelongsToMany<Team, $this> */
-    public function teams(): BelongsToMany
+    /** @return BelongsToMany<Channel, $this> */
+    public function channels(): BelongsToMany
     {
-        return $this->belongsToMany(Team::class)->withPivot(['subscribed', 'note_default']);
+        return $this->belongsToMany(Channel::class)->withPivot(['subscribed', 'note_default']);
     }
 
-    /** @return BelongsToMany<Team, $this> */
-    public function subscribedTeams(): BelongsToMany
+    /** @return BelongsToMany<Channel, $this> */
+    public function subscribedChannels(): BelongsToMany
     {
-        return $this->teams()->wherePivot('subscribed', true);
+        return $this->channels()->wherePivot('subscribed', true);
     }
 
-    /** @return BelongsToMany<Team, $this> */
-    public function defaultNoteTeams(): BelongsToMany
+    /** @return BelongsToMany<Channel, $this> */
+    public function defaultNoteChannels(): BelongsToMany
     {
-        return $this->teams()->wherePivot('note_default', true);
+        return $this->channels()->wherePivot('note_default', true);
     }
 
     protected function fullName(): Attribute
@@ -70,23 +70,23 @@ class User extends Authenticatable
     }
 
     /**
-     * Replace the user's team rows from two checkbox selections. A team in
-     * either list keeps a row with the matching flags; a team in neither
-     * loses its row entirely.
+     * Replace the user's channel rows from two checkbox selections. A channel
+     * in either list keeps a row with the matching flags; a channel in
+     * neither loses its row entirely.
      *
-     * @param  array<int>  $subscribedTeamIds
-     * @param  array<int>  $noteDefaultTeamIds
+     * @param  array<int>  $subscribedChannelIds
+     * @param  array<int>  $noteDefaultChannelIds
      */
-    public function syncTeamPreferences(array $subscribedTeamIds, array $noteDefaultTeamIds): void
+    public function syncChannelPreferences(array $subscribedChannelIds, array $noteDefaultChannelIds): void
     {
-        $rows = collect($subscribedTeamIds)
-            ->merge($noteDefaultTeamIds)
+        $rows = collect($subscribedChannelIds)
+            ->merge($noteDefaultChannelIds)
             ->unique()
-            ->mapWithKeys(fn (int $teamId): array => [$teamId => [
-                'subscribed' => in_array($teamId, $subscribedTeamIds),
-                'note_default' => in_array($teamId, $noteDefaultTeamIds),
+            ->mapWithKeys(fn (int $channelId): array => [$channelId => [
+                'subscribed' => in_array($channelId, $subscribedChannelIds),
+                'note_default' => in_array($channelId, $noteDefaultChannelIds),
             ]]);
 
-        $this->teams()->sync($rows->all());
+        $this->channels()->sync($rows->all());
     }
 }

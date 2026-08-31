@@ -34,7 +34,7 @@
         <flux:table.columns>
             <flux:table.column>Person</flux:table.column>
             <flux:table.column class="max-md:hidden">Username</flux:table.column>
-            <flux:table.column class="max-md:hidden">Teams</flux:table.column>
+            <flux:table.column class="max-md:hidden">Channels</flux:table.column>
             <flux:table.column class="max-md:hidden">Notes</flux:table.column>
             <flux:table.column>Admin</flux:table.column>
             <flux:table.column></flux:table.column>
@@ -51,10 +51,10 @@
                     </flux:table.cell>
                     <flux:table.cell class="max-md:hidden">{{ $user->username !== '' ? $user->username : 'awaiting first login' }}</flux:table.cell>
                     <flux:table.cell class="max-md:hidden">
-                        @forelse ($user->teams as $team)
-                            <flux:badge color="sky" size="sm" inset="top bottom">{{ $team->name }}</flux:badge>
+                        @forelse ($user->channels as $channel)
+                            <flux:badge :color="$channel->colour()" size="sm" inset="top bottom">{{ $channel->name }}</flux:badge>
                         @empty
-                            <flux:badge color="zinc" size="sm" inset="top bottom">no teams</flux:badge>
+                            <flux:badge color="zinc" size="sm" inset="top bottom">no channels</flux:badge>
                         @endforelse
                     </flux:table.cell>
                     <flux:table.cell class="max-md:hidden">{{ $user->notes_count }}</flux:table.cell>
@@ -109,16 +109,16 @@
                 <flux:input wire:model="surname" label="Surname" />
             </flux:fieldset>
 
-            @if ($teams->isNotEmpty())
+            @if ($channels->isNotEmpty())
                 <flux:checkbox.group
-                    wire:model="selectedTeamIds"
-                    label="Teams"
+                    wire:model="selectedChannelIds"
+                    label="Channels"
                     :description="$editingUser
-                        ? 'Saving here resets their per-team fine-tuning to the simple case: read and post to every ticked team.'
-                        : 'Their search follows these teams, and their notes default here. They can fine-tune it themselves later.'"
+                        ? 'Saving here resets their per-channel fine-tuning to the simple case: read and post to every ticked channel.'
+                        : 'Their search follows these channels, and their notes default here. They can fine-tune it themselves later.'"
                 >
-                    @foreach ($teams as $team)
-                        <flux:checkbox :value="$team->id" :label="$team->name" wire:key="form-team-{{ $team->id }}" />
+                    @foreach ($channels as $channel)
+                        <flux:checkbox :value="$channel->id" :label="$channel->name" wire:key="form-channel-{{ $channel->id }}" />
                     @endforeach
                 </flux:checkbox.group>
             @endif

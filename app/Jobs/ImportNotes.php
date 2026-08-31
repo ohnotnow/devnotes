@@ -3,8 +3,8 @@
 namespace App\Jobs;
 
 use App\Models\Activity;
+use App\Models\Channel;
 use App\Models\Note;
-use App\Models\Team;
 use App\Models\User;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Queue\Queueable;
@@ -23,13 +23,13 @@ class ImportNotes implements ShouldQueue
     public int $tries = 1;
 
     /** Every field the preview and the import read without a fallback. */
-    public const REQUIRED_NOTE_KEYS = ['ulid', 'code', 'title', 'body', 'author', 'teams', 'created_at', 'updated_at', 'deleted_at'];
+    public const REQUIRED_NOTE_KEYS = ['ulid', 'code', 'title', 'body', 'author', 'channels', 'created_at', 'updated_at', 'deleted_at'];
 
     /** Every field the author of an imported note must carry. */
     public const REQUIRED_AUTHOR_KEYS = ['email', 'forenames', 'surname', 'is_admin', 'is_staff'];
 
-    /** @var array{imported: int, skipped: array<string>, overwritten: array<string>, recoded: array<array{old: string, new: string}>, users_created: int, teams_created: int} */
-    private array $report = ['imported' => 0, 'skipped' => [], 'overwritten' => [], 'recoded' => [], 'users_created' => 0, 'teams_created' => 0];
+    /** @var array{imported: int, skipped: array<string>, overwritten: array<string>, recoded: array<array{old: string, new: string}>, users_created: int, channels_created: int} */
+    private array $report = ['imported' => 0, 'skipped' => [], 'overwritten' => [], 'recoded' => [], 'users_created' => 0, 'channels_created' => 0];
 
     /**
      * @param  array<int, string>  $overwriteUlids
@@ -47,7 +47,7 @@ class ImportNotes implements ShouldQueue
      * (new ImportNotes(...))->handle(). dispatchSync discards the
      * return value of a ShouldQueue job; queued dispatch discards it too.
      *
-     * @return array{imported: int, skipped: array<string>, recoded: array<array{old: string, new: string}>, users_created: int, teams_created: int}
+     * @return array{imported: int, skipped: array<string>, recoded: array<array{old: string, new: string}>, users_created: int, channels_created: int}
      */
     public function handle(): array
     {
@@ -96,7 +96,7 @@ class ImportNotes implements ShouldQueue
             && array_diff(self::REQUIRED_NOTE_KEYS, array_keys($note)) === []
             && is_array($note['author'])
             && array_diff(self::REQUIRED_AUTHOR_KEYS, array_keys($note['author'])) === []
-            && is_array($note['teams']));
+            && is_array($note['channels']));
     }
 
     /**
@@ -123,7 +123,7 @@ class ImportNotes implements ShouldQueue
 
         $owner = $this->resolveOwner($exportedNote['author']);
         $note = $this->createNote($exportedNote, $owner);
-        $note->teams()->attach($this->resolveTeamIds($exportedNote['teams']));
+        $note->channels()->attach($this->resolveChannelIds($exportedNote['channels']));
         $this->importActivities($note, $exportedNote);
         $this->report['imported']++;
     }
@@ -175,7 +175,7 @@ class ImportNotes implements ShouldQueue
             'last_read_at' => $exportedNote['last_read_at'] ?? null,
         ])->save();
 
-        $note->teams()->sync($this->resolveTeamIds($exportedNote['teams']));
+        $note->channels()->sync($this->resolveChannelIds($exportedNote['channels']));
     }
 
     /**
@@ -241,19 +241,19 @@ class ImportNotes implements ShouldQueue
     }
 
     /**
-     * @param  array<int, string>  $teamNames
+     * @param  array<int, string>  $channelNames
      * @return array<int, int>
      */
-    private function resolveTeamIds(array $teamNames): array
+    private function resolveChannelIds(array $channelNames): array
     {
-        return collect($teamNames)->map(function (string $teamName): int {
-            $team = Team::firstOrCreate(['name' => $teamName]);
+        return collect($channelNames)->map(function (string $channelName): int {
+            $channel = Channel::firstOrCreate(['name' => $channelName]);
 
-            if ($team->wasRecentlyCreated) {
-                $this->report['teams_created']++;
+            if ($channel->wasRecentlyCreated) {
+                $this->report['channels_created']++;
             }
 
-            return $team->id;
+            return $channel->id;
         })->all();
     }
 }

@@ -28,7 +28,7 @@ class ExportNoteResource extends JsonResource
             'title' => $this->title,
             'body' => $this->body,
             'author' => $this->userBlock($this->user),
-            'teams' => $this->teams->pluck('name')->sort()->values()->all(),
+            'channels' => $this->channels->pluck('name')->sort()->values()->all(),
             'created_at' => $this->created_at,
             'updated_at' => $this->updated_at,
             'deleted_at' => $this->deleted_at,

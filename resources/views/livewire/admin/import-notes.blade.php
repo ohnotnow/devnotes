@@ -25,7 +25,7 @@
                 <flux:text>
                     {{ $preview['new_count'] }} new {{ Str::plural('note', $preview['new_count']) }} will be imported,
                     creating {{ $preview['users_to_create'] }} {{ Str::plural('author', $preview['users_to_create']) }}
-                    and {{ $preview['teams_to_create'] }} {{ Str::plural('team', $preview['teams_to_create']) }}.
+                    and {{ $preview['channels_to_create'] }} {{ Str::plural('channel', $preview['channels_to_create']) }}.
                 </flux:text>
                 @if ($preview['identical_count'] > 0)
                     <flux:text>{{ $preview['identical_count'] }} {{ Str::plural('note', $preview['identical_count']) }} {{ $preview['identical_count'] === 1 ? 'is' : 'are' }} already here and unchanged - {{ $preview['identical_count'] === 1 ? 'it' : 'they' }} will be skipped.</flux:text>

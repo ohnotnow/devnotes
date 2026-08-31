@@ -2,12 +2,12 @@
 
 namespace App\Http\Resources;
 
-use App\Models\Team;
+use App\Models\Channel;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\JsonResource;
 
-/** @mixin Team */
-class TeamResource extends JsonResource
+/** @mixin Channel */
+class ChannelResource extends JsonResource
 {
     /**
      * Transform the resource into an array.

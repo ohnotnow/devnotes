@@ -2,8 +2,8 @@
 
 use App\Enums\ActivityAction;
 use App\Models\Activity;
+use App\Models\Channel;
 use App\Models\Note;
-use App\Models\Team;
 use App\Models\User;
 use Laravel\Sanctum\Sanctum;
 
@@ -32,16 +32,16 @@ it('lists notes newest-first in the documented envelope and filters via search',
     expect($search->json('data.0.title'))->toBe('An older postgres gotcha');
 });
 
-it('scopes search and the list to the token user\'s teams and widens with broader', function () {
-    $developers = Team::factory()->create(['name' => 'developers']);
-    $sysadmins = Team::factory()->create(['name' => 'sysadmins']);
+it('scopes search and the list to the token user\'s channels and widens with broader', function () {
+    $developers = Channel::factory()->create(['name' => 'developers']);
+    $sysadmins = Channel::factory()->create(['name' => 'sysadmins']);
     $developer = Sanctum::actingAs(User::factory()->create());
-    $developer->teams()->attach($developers);
+    $developer->channels()->attach($developers);
     $developerNote = Note::factory()->create(['title' => 'Docker layer cache misses']);
-    $developerNote->teams()->attach($developers);
+    $developerNote->channels()->attach($developers);
     $sysadminNote = Note::factory()->create(['title' => 'Docker daemon log rotation']);
-    $sysadminNote->teams()->attach($sysadmins);
-    $teamlessNote = Note::factory()->create(['title' => 'Compose healthcheck gotcha']);
+    $sysadminNote->channels()->attach($sysadmins);
+    $channellessNote = Note::factory()->create(['title' => 'Compose healthcheck gotcha']);
 
     $scoped = $this->getJson('/api/v1/notes?search=docker');
     $scoped->assertOk();
@@ -54,15 +54,15 @@ it('scopes search and the list to the token user\'s teams and widens with broade
 
     $browsing = $this->getJson('/api/v1/notes');
     $browsing->assertOk();
-    expect(collect($browsing->json('data'))->pluck('code')->all())->toEqualCanonicalizing([$developerNote->code, $teamlessNote->code]);
+    expect(collect($browsing->json('data'))->pluck('code')->all())->toEqualCanonicalizing([$developerNote->code, $channellessNote->code]);
 
     $browsingBroader = $this->getJson('/api/v1/notes?broader=1');
     $browsingBroader->assertOk();
-    expect(collect($browsingBroader->json('data'))->pluck('code')->all())->toEqualCanonicalizing([$developerNote->code, $sysadminNote->code, $teamlessNote->code]);
+    expect(collect($browsingBroader->json('data'))->pluck('code')->all())->toEqualCanonicalizing([$developerNote->code, $sysadminNote->code, $channellessNote->code]);
 
     Sanctum::actingAs(User::factory()->create());
-    $noTeamUserBrowsing = $this->getJson('/api/v1/notes');
-    expect(collect($noTeamUserBrowsing->json('data'))->pluck('code')->all())->toEqualCanonicalizing([$developerNote->code, $sysadminNote->code, $teamlessNote->code]);
+    $noChannelUserBrowsing = $this->getJson('/api/v1/notes');
+    expect(collect($noChannelUserBrowsing->json('data'))->pluck('code')->all())->toEqualCanonicalizing([$developerNote->code, $sysadminNote->code, $channellessNote->code]);
 });
 
 it('shows a single note as raw markdown', function () {
@@ -87,14 +87,14 @@ it('bumps read tracking when a note is fetched via the api', function () {
     expect($note->last_read_at)->not->toBeNull();
 });
 
-it('lists a note\'s team names in the resource', function () {
+it('lists a note\'s channel names in the resource', function () {
     Sanctum::actingAs(User::factory()->create());
     $taggedNote = Note::factory()->create();
-    $taggedNote->teams()->attach(Team::factory()->create(['name' => 'developers']));
-    $teamlessNote = Note::factory()->create();
+    $taggedNote->channels()->attach(Channel::factory()->create(['name' => 'developers']));
+    $channellessNote = Note::factory()->create();
 
-    expect($this->getJson("/api/v1/notes/{$taggedNote->code}")->json('data.teams'))->toBe(['developers']);
-    expect($this->getJson("/api/v1/notes/{$teamlessNote->code}")->json('data.teams'))->toBe([]);
+    expect($this->getJson("/api/v1/notes/{$taggedNote->code}")->json('data.channels'))->toBe(['developers']);
+    expect($this->getJson("/api/v1/notes/{$channellessNote->code}")->json('data.channels'))->toBe([]);
 });
 
 it('creates a note owned by the token user and rejects invalid payloads', function () {
@@ -117,23 +117,23 @@ it('creates a note owned by the token user and rejects invalid payloads', functi
     expect(Note::count())->toBe(1);
 });
 
-it('attaches teams on create from the payload or the author\'s defaults', function () {
-    $developers = Team::factory()->create(['name' => 'developers']);
-    $sysadmins = Team::factory()->create(['name' => 'sysadmins']);
+it('attaches channels on create from the payload or the author\'s defaults', function () {
+    $developers = Channel::factory()->create(['name' => 'developers']);
+    $sysadmins = Channel::factory()->create(['name' => 'sysadmins']);
     $tokenUser = Sanctum::actingAs(User::factory()->create());
-    $tokenUser->teams()->attach($developers);
+    $tokenUser->channels()->attach($developers);
 
     $defaulted = $this->postJson('/api/v1/notes', ['title' => 'Defaulted', 'body' => 'Body.']);
     $defaulted->assertCreated();
-    expect(Note::where('code', $defaulted->json('data.code'))->sole()->teams()->pluck('teams.id')->all())->toBe([$developers->id]);
+    expect(Note::where('code', $defaulted->json('data.code'))->sole()->channels()->pluck('channels.id')->all())->toBe([$developers->id]);
 
-    $explicit = $this->postJson('/api/v1/notes', ['title' => 'Explicit', 'body' => 'Body.', 'team_ids' => [$sysadmins->id]]);
+    $explicit = $this->postJson('/api/v1/notes', ['title' => 'Explicit', 'body' => 'Body.', 'channel_ids' => [$sysadmins->id]]);
     $explicit->assertCreated();
-    expect(Note::where('code', $explicit->json('data.code'))->sole()->teams()->pluck('teams.id')->all())->toBe([$sysadmins->id]);
+    expect(Note::where('code', $explicit->json('data.code'))->sole()->channels()->pluck('channels.id')->all())->toBe([$sysadmins->id]);
 
-    $invalid = $this->postJson('/api/v1/notes', ['title' => 'Bad team', 'body' => 'Body.', 'team_ids' => [999]]);
+    $invalid = $this->postJson('/api/v1/notes', ['title' => 'Bad team', 'body' => 'Body.', 'channel_ids' => [999]]);
     $invalid->assertUnprocessable();
-    $invalid->assertJsonValidationErrors(['team_ids.0']);
+    $invalid->assertJsonValidationErrors(['channel_ids.0']);
     expect(Note::count())->toBe(2);
 });
 
@@ -156,24 +156,24 @@ it('lets any token holder update any note without stealing authorship', function
     expect($note->fresh()->body)->toBe($note->body);
 });
 
-it('syncs teams on update only when team_ids is sent', function () {
-    $developers = Team::factory()->create(['name' => 'developers']);
-    $sysadmins = Team::factory()->create(['name' => 'sysadmins']);
+it('syncs channels on update only when channel_ids is sent', function () {
+    $developers = Channel::factory()->create(['name' => 'developers']);
+    $sysadmins = Channel::factory()->create(['name' => 'sysadmins']);
     Sanctum::actingAs(User::factory()->create());
     $note = Note::factory()->create();
-    $note->teams()->attach($developers);
+    $note->channels()->attach($developers);
 
-    $withoutTeams = $this->putJson("/api/v1/notes/{$note->code}", ['title' => 'Updated', 'body' => $note->body]);
-    $withoutTeams->assertOk();
-    expect($note->teams()->pluck('teams.id')->all())->toBe([$developers->id]);
+    $withoutChannels = $this->putJson("/api/v1/notes/{$note->code}", ['title' => 'Updated', 'body' => $note->body]);
+    $withoutChannels->assertOk();
+    expect($note->channels()->pluck('channels.id')->all())->toBe([$developers->id]);
 
-    $withTeams = $this->putJson("/api/v1/notes/{$note->code}", ['title' => 'Updated again', 'body' => $note->body, 'team_ids' => [$sysadmins->id]]);
-    $withTeams->assertOk();
-    expect($note->teams()->pluck('teams.id')->all())->toBe([$sysadmins->id]);
+    $withChannels = $this->putJson("/api/v1/notes/{$note->code}", ['title' => 'Updated again', 'body' => $note->body, 'channel_ids' => [$sysadmins->id]]);
+    $withChannels->assertOk();
+    expect($note->channels()->pluck('channels.id')->all())->toBe([$sysadmins->id]);
 
-    $cleared = $this->putJson("/api/v1/notes/{$note->code}", ['title' => 'Cleared', 'body' => $note->body, 'team_ids' => []]);
+    $cleared = $this->putJson("/api/v1/notes/{$note->code}", ['title' => 'Cleared', 'body' => $note->body, 'channel_ids' => []]);
     $cleared->assertOk();
-    expect($note->teams()->count())->toBe(0);
+    expect($note->channels()->count())->toBe(0);
 });
 
 it('shows a trashed note via the api with deleted_at set', function () {
@@ -212,12 +212,12 @@ it('soft-deletes exactly the targeted note', function () {
     expect($list->json('data.0.code'))->toBe($noteToKeep->code);
 });
 
-it('lists every team with id and name for client team discovery', function () {
+it('lists every channel with id and name for client channel discovery', function () {
     Sanctum::actingAs(User::factory()->create());
-    $sysadmins = Team::factory()->create(['name' => 'sysadmins']);
-    $developers = Team::factory()->create(['name' => 'developers']);
+    $sysadmins = Channel::factory()->create(['name' => 'sysadmins']);
+    $developers = Channel::factory()->create(['name' => 'developers']);
 
-    $response = $this->getJson('/api/v1/teams');
+    $response = $this->getJson('/api/v1/channels');
 
     $response->assertOk();
     expect($response->json('data'))->toBe([
@@ -230,7 +230,7 @@ it('rejects unauthenticated requests on every endpoint', function () {
     $note = Note::factory()->create();
 
     $this->getJson('/api/v1/notes')->assertUnauthorized();
-    $this->getJson('/api/v1/teams')->assertUnauthorized();
+    $this->getJson('/api/v1/channels')->assertUnauthorized();
     $this->getJson("/api/v1/notes/{$note->code}")->assertUnauthorized();
     $this->postJson('/api/v1/notes', [])->assertUnauthorized();
     $this->putJson("/api/v1/notes/{$note->code}", [])->assertUnauthorized();
@@ -297,7 +297,7 @@ it('refuses a token that has been revoked', function () {
 });
 
 it('updates a note over PATCH the same way it does over PUT', function () {
-    $developers = Team::factory()->create(['name' => 'developers']);
+    $developers = Channel::factory()->create(['name' => 'developers']);
     $author = User::factory()->create();
     $note = Note::factory()->create(['title' => 'Old titel', 'body' => 'Body.', 'user_id' => $author->id]);
     Sanctum::actingAs(User::factory()->create());
@@ -305,14 +305,14 @@ it('updates a note over PATCH the same way it does over PUT', function () {
     $response = $this->patchJson("/api/v1/notes/{$note->code}", [
         'title' => 'Old title, fixed',
         'body' => 'Body.',
-        'team_ids' => [$developers->id],
+        'channel_ids' => [$developers->id],
     ]);
 
     $response->assertOk();
     $note->refresh();
     expect($note->title)->toBe('Old title, fixed');
     expect($note->user->is($author))->toBeTrue();
-    expect($note->teams()->pluck('teams.id')->all())->toBe([$developers->id]);
+    expect($note->channels()->pluck('channels.id')->all())->toBe([$developers->id]);
 
     // PATCH carries the same full-payload contract as PUT - a partial one is rejected.
     $partial = $this->patchJson("/api/v1/notes/{$note->code}", ['title' => 'Title only']);

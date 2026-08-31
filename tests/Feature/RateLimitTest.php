@@ -11,13 +11,13 @@ it('rate limits the api to 60 requests per minute per user', function () {
     Sanctum::actingAs(User::factory()->create());
 
     foreach (range(1, 60) as $request) {
-        $this->getJson('/api/v1/teams')->assertSuccessful();
+        $this->getJson('/api/v1/channels')->assertSuccessful();
     }
 
-    $this->getJson('/api/v1/teams')->assertStatus(429);
+    $this->getJson('/api/v1/channels')->assertStatus(429);
 
     Sanctum::actingAs(User::factory()->create());
-    $this->getJson('/api/v1/teams')->assertSuccessful();
+    $this->getJson('/api/v1/channels')->assertSuccessful();
 });
 
 it('rate limits the mcp endpoint to 60 requests per minute per user', function () {

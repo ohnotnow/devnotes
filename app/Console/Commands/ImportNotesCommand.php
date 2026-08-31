@@ -40,7 +40,7 @@ class ImportNotesCommand extends Command
         }
 
         $this->info("Users created: {$report['users_created']}");
-        $this->info("Teams created: {$report['teams_created']}");
+        $this->info("Channels created: {$report['channels_created']}");
 
         return self::SUCCESS;
     }

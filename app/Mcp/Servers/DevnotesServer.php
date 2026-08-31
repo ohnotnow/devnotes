@@ -18,7 +18,7 @@ use Laravel\Mcp\Server\ServerContext;
 #[Version('0.0.1')]
 class DevnotesServer extends Server
 {
-    private const HABIT_TEXT = 'Devnotes is a small dev team\'s shared pot of gotchas, fixes, and lessons learned - tiny markdown notes captured mid-session. When something behaves oddly (a flaky test, a puzzling error, surprising framework behaviour), call search-notes BEFORE debugging from scratch: a teammate has probably paid for that lesson already. When a session uncovers or solves something gnarly, suggest a devnote to the developer ("this feels worth a devnote?") and use add-note once they agree. Write each note for a total stranger, because the reader will be a future session with no memory of today: symptom, cause, fix, and breadcrumbs like exact error text and versions. Notes can reference each other as #code (a short five-character code like #abq4x); add-note returns the code so you can cite it. Search results are scoped to your teams by default - if a scoped search does not answer the question, retry it with broader: true to cover every team\'s notes.';
+    private const HABIT_TEXT = 'Devnotes is a small dev team\'s shared pot of gotchas, fixes, and lessons learned - tiny markdown notes captured mid-session. When something behaves oddly (a flaky test, a puzzling error, surprising framework behaviour), call search-notes BEFORE debugging from scratch: a teammate has probably paid for that lesson already. When a session uncovers or solves something gnarly, suggest a devnote to the developer ("this feels worth a devnote?") and use add-note once they agree. Write each note for a total stranger, because the reader will be a future session with no memory of today: symptom, cause, fix, and breadcrumbs like exact error text and versions. Notes can reference each other as #code (a short five-character code like #abq4x); add-note returns the code so you can cite it. Search results are scoped to your subscribed channels by default - if a scoped search does not answer the question, retry it with broader: true to cover every channel\'s notes.';
 
     protected array $tools = [
         AddNote::class,
@@ -48,7 +48,7 @@ class DevnotesServer extends Server
 
     private function instructionsFor(User $user): string
     {
-        $notes = Note::inTeamsOf($user)->with('teams')->latest('updated_at')->take(10)->get();
+        $notes = Note::inChannelsOf($user)->with('channels')->latest('updated_at')->take(10)->get();
 
         if ($notes->isEmpty()) {
             return self::HABIT_TEXT;
@@ -57,7 +57,7 @@ class DevnotesServer extends Server
         $lines = $notes->map(function (Note $note): string {
             // Absolute date, not diffForHumans(): clients cache instructions at
             // connect time, so a relative age would go stale and read as false.
-            $meta = $note->teams->pluck('name')->push($note->updated_at->toDateString())->implode(', ');
+            $meta = $note->channels->pluck('name')->push($note->updated_at->toDateString())->implode(', ');
 
             return "- #{$note->code} {$note->title} ({$meta})";
         });

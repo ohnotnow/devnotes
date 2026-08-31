@@ -2,8 +2,8 @@
 
 namespace App\Mcp\Tools;
 
+use App\Models\Channel;
 use App\Models\Note;
-use App\Models\Team;
 use App\Models\User;
 use Illuminate\Contracts\JsonSchema\JsonSchema;
 use Illuminate\JsonSchema\Types\Type;
@@ -12,7 +12,7 @@ use Laravel\Mcp\Response;
 use Laravel\Mcp\Server\Attributes\Description;
 use Laravel\Mcp\Server\Tool;
 
-#[Description('Capture a new devnote: a small markdown note recording a gotcha, fix, or lesson learned. Optionally tag it with team names; untagged notes go to your default teams. Returns the new note code, which can be cited as #code in other notes and chat.')]
+#[Description('Capture a new devnote: a small markdown note recording a gotcha, fix, or lesson learned. Optionally post it to named channels; otherwise it goes to your default channels. Returns the new note code, which can be cited as #code in other notes and chat.')]
 class AddNote extends Tool
 {
     /**
@@ -23,8 +23,8 @@ class AddNote extends Tool
         $validated = $request->validate([
             'title' => ['required', 'string', 'max:255'],
             'body' => ['required', 'string'],
-            'teams' => ['sometimes', 'array'],
-            'teams.*' => ['string', 'exists:teams,name'],
+            'channels' => ['sometimes', 'array'],
+            'channels.*' => ['string', 'exists:channels,name'],
         ]);
 
         /** @var User $actingUser */
@@ -36,8 +36,8 @@ class AddNote extends Tool
             'body' => $validated['body'],
         ]);
 
-        $note->assignTeams(isset($validated['teams'])
-            ? Team::whereIn('name', $validated['teams'])->pluck('id')->all()
+        $note->assignChannels(isset($validated['channels'])
+            ? Channel::whereIn('name', $validated['channels'])->pluck('id')->all()
             : null);
 
         $payload = [
@@ -74,9 +74,9 @@ class AddNote extends Tool
             'body' => $schema->string()
                 ->description('The note body as markdown. Write for a stranger: symptom, cause, fix, breadcrumbs.')
                 ->required(),
-            'teams' => $schema->array()
+            'channels' => $schema->array()
                 ->items($schema->string())
-                ->description('Team names to tag the note with. Omit for your default teams; pass [] for a note every team sees.'),
+                ->description('Channel names to post the note to. Omit for your default channels; pass [] for a whole-pot note that appears in every scoped search.'),
         ];
     }
 }

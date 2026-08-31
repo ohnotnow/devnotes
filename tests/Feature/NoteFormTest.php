@@ -1,8 +1,8 @@
 <?php
 
 use App\Livewire\NoteForm;
+use App\Models\Channel;
 use App\Models\Note;
-use App\Models\Team;
 use App\Models\User;
 use Livewire\Livewire;
 
@@ -48,58 +48,58 @@ it('lets any user edit any note without stealing authorship', function () {
     expect(Note::count())->toBe(1);
 });
 
-it('pre-checks the author\'s default teams on create and saves the selection', function () {
-    $developers = Team::factory()->create(['name' => 'developers']);
-    $sysadmins = Team::factory()->create(['name' => 'sysadmins']);
+it('pre-checks the author\'s default channels on create and saves the selection', function () {
+    $developers = Channel::factory()->create(['name' => 'developers']);
+    $sysadmins = Channel::factory()->create(['name' => 'sysadmins']);
     $author = User::factory()->create();
-    $author->teams()->attach($developers);
+    $author->channels()->attach($developers);
 
     Livewire::actingAs($author)
         ->test(NoteForm::class)
         ->call('openCreate')
-        ->assertSet('selectedTeamIds', [$developers->id])
+        ->assertSet('selectedChannelIds', [$developers->id])
         ->set('editing.title', 'A note for the sysadmins too')
         ->set('editing.body', 'Body.')
-        ->set('selectedTeamIds', [$developers->id, $sysadmins->id])
+        ->set('selectedChannelIds', [$developers->id, $sysadmins->id])
         ->call('save')
         ->assertHasNoErrors();
 
-    expect(Note::sole()->teams()->pluck('teams.id')->all())->toEqualCanonicalizing([$developers->id, $sysadmins->id]);
+    expect(Note::sole()->channels()->pluck('channels.id')->all())->toEqualCanonicalizing([$developers->id, $sysadmins->id]);
 });
 
-it('reflects and syncs a note\'s teams on edit', function () {
-    $developers = Team::factory()->create(['name' => 'developers']);
-    $sysadmins = Team::factory()->create(['name' => 'sysadmins']);
+it('reflects and syncs a note\'s channels on edit', function () {
+    $developers = Channel::factory()->create(['name' => 'developers']);
+    $sysadmins = Channel::factory()->create(['name' => 'sysadmins']);
     $editor = User::factory()->create();
     $note = Note::factory()->create();
-    $note->teams()->attach($developers);
+    $note->channels()->attach($developers);
 
     Livewire::actingAs($editor)
         ->test(NoteForm::class)
         ->call('openEdit', $note->id)
-        ->assertSet('selectedTeamIds', [$developers->id])
-        ->set('selectedTeamIds', [$sysadmins->id])
+        ->assertSet('selectedChannelIds', [$developers->id])
+        ->set('selectedChannelIds', [$sysadmins->id])
         ->call('save')
         ->assertHasNoErrors();
 
-    expect($note->teams()->pluck('teams.id')->all())->toBe([$sysadmins->id]);
+    expect($note->channels()->pluck('channels.id')->all())->toBe([$sysadmins->id]);
 });
 
-it('saves a deliberately teamless note when every box is unchecked', function () {
-    $developers = Team::factory()->create(['name' => 'developers']);
+it('saves a deliberately channel-less note when every box is unchecked', function () {
+    $developers = Channel::factory()->create(['name' => 'developers']);
     $author = User::factory()->create();
-    $author->teams()->attach($developers);
+    $author->channels()->attach($developers);
 
     Livewire::actingAs($author)
         ->test(NoteForm::class)
         ->call('openCreate')
         ->set('editing.title', 'Whole-pot note')
         ->set('editing.body', 'Body.')
-        ->set('selectedTeamIds', [])
+        ->set('selectedChannelIds', [])
         ->call('save')
         ->assertHasNoErrors();
 
-    expect(Note::sole()->teams()->count())->toBe(0);
+    expect(Note::sole()->channels()->count())->toBe(0);
 });
 
 it('creates a note owned by the logged-in user', function () {
@@ -137,10 +137,10 @@ it('starts a fresh note after an edit instead of overwriting the note just edite
 });
 
 it('leaves an existing note untouched when an edit fails validation', function () {
-    $developers = Team::factory()->create(['name' => 'developers']);
+    $developers = Channel::factory()->create(['name' => 'developers']);
     $editor = User::factory()->create();
     $note = Note::factory()->create(['title' => 'Working title', 'body' => 'Working body.']);
-    $note->teams()->attach($developers);
+    $note->channels()->attach($developers);
 
     Livewire::actingAs($editor)
         ->test(NoteForm::class)
@@ -154,7 +154,7 @@ it('leaves an existing note untouched when an edit fails validation', function (
     $note->refresh();
     expect($note->title)->toBe('Working title');
     expect($note->body)->toBe('Working body.');
-    expect($note->teams()->pluck('teams.id')->all())->toBe([$developers->id]);
+    expect($note->channels()->pluck('channels.id')->all())->toBe([$developers->id]);
     expect(Note::count())->toBe(1);
 });
 

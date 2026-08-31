@@ -3,8 +3,8 @@
 use App\Enums\ActivityAction;
 use App\Livewire\Admin\Users;
 use App\Models\Activity;
+use App\Models\Channel;
 use App\Models\Note;
-use App\Models\Team;
 use App\Models\User;
 use Illuminate\Support\Facades\Auth;
 use Livewire\Livewire;
@@ -38,51 +38,51 @@ it('adds a stub user by email and rejects blanks and duplicates', function () {
     expect(User::count())->toBe(3);
 });
 
-it('adds a user with their teams subscribed and set as note defaults', function () {
+it('adds a user with their channels subscribed and set as note defaults', function () {
     $admin = User::factory()->create(['is_admin' => true]);
-    $developers = Team::factory()->create(['name' => 'developers']);
-    Team::factory()->create(['name' => 'sysadmins']);
+    $developers = Channel::factory()->create(['name' => 'developers']);
+    Channel::factory()->create(['name' => 'sysadmins']);
 
     Livewire::actingAs($admin)
         ->test(Users::class)
         ->set('email', 'newbie@example.test')
-        ->set('selectedTeamIds', [$developers->id])
+        ->set('selectedChannelIds', [$developers->id])
         ->call('save')
         ->assertHasNoErrors();
 
     $newUser = User::where('email', 'newbie@example.test')->sole();
-    expect($newUser->subscribedTeams()->pluck('teams.id')->all())->toBe([$developers->id]);
-    expect($newUser->defaultNoteTeams()->pluck('teams.id')->all())->toBe([$developers->id]);
-    expect($newUser->teams()->pluck('teams.id')->all())->toBe([$developers->id]);
+    expect($newUser->subscribedChannels()->pluck('channels.id')->all())->toBe([$developers->id]);
+    expect($newUser->defaultNoteChannels()->pluck('channels.id')->all())->toBe([$developers->id]);
+    expect($newUser->channels()->pluck('channels.id')->all())->toBe([$developers->id]);
 });
 
-it('edits an existing user\'s teams from the table', function () {
+it('edits an existing user\'s channels from the table', function () {
     $admin = User::factory()->create(['is_admin' => true]);
-    $developers = Team::factory()->create(['name' => 'developers']);
-    $sysadmins = Team::factory()->create(['name' => 'sysadmins']);
+    $developers = Channel::factory()->create(['name' => 'developers']);
+    $sysadmins = Channel::factory()->create(['name' => 'sysadmins']);
     $mover = User::factory()->create();
-    $mover->teams()->attach($developers);
+    $mover->channels()->attach($developers);
 
     Livewire::actingAs($admin)
         ->test(Users::class)
         ->call('openEdit', $mover->id)
-        ->assertSet('selectedTeamIds', [$developers->id])
-        ->set('selectedTeamIds', [$sysadmins->id])
+        ->assertSet('selectedChannelIds', [$developers->id])
+        ->set('selectedChannelIds', [$sysadmins->id])
         ->call('save')
         ->assertHasNoErrors();
 
-    expect($mover->refresh()->subscribedTeams()->pluck('teams.id')->all())->toBe([$sysadmins->id]);
-    expect($mover->defaultNoteTeams()->pluck('teams.id')->all())->toBe([$sysadmins->id]);
+    expect($mover->refresh()->subscribedChannels()->pluck('channels.id')->all())->toBe([$sysadmins->id]);
+    expect($mover->defaultNoteChannels()->pluck('channels.id')->all())->toBe([$sysadmins->id]);
 });
 
-it('flattens a user\'s per-team fine-tuning when an admin saves their teams', function () {
+it('flattens a user\'s per-channel fine-tuning when an admin saves their channels', function () {
     // Deliberate, documented in the flyout copy: admin membership is the
-    // simple case - read and post to every ticked team.
+    // simple case - read and post to every ticked channel.
     $admin = User::factory()->create(['is_admin' => true]);
-    $developers = Team::factory()->create(['name' => 'developers']);
+    $developers = Channel::factory()->create(['name' => 'developers']);
     $tuner = User::factory()->create();
-    $tuner->teams()->attach($developers);
-    $tuner->teams()->updateExistingPivot($developers->id, ['note_default' => false]);
+    $tuner->channels()->attach($developers);
+    $tuner->channels()->updateExistingPivot($developers->id, ['note_default' => false]);
 
     Livewire::actingAs($admin)
         ->test(Users::class)
@@ -90,27 +90,27 @@ it('flattens a user\'s per-team fine-tuning when an admin saves their teams', fu
         ->call('save')
         ->assertHasNoErrors();
 
-    expect($tuner->refresh()->defaultNoteTeams()->pluck('teams.id')->all())->toBe([$developers->id]);
+    expect($tuner->refresh()->defaultNoteChannels()->pluck('channels.id')->all())->toBe([$developers->id]);
 });
 
 it('does not leak a cancelled edit into the add-person form', function () {
     $admin = User::factory()->create(['is_admin' => true]);
-    $developers = Team::factory()->create(['name' => 'developers']);
+    $developers = Channel::factory()->create(['name' => 'developers']);
     $existingMember = User::factory()->create();
-    $existingMember->teams()->attach($developers);
+    $existingMember->channels()->attach($developers);
 
     Livewire::actingAs($admin)
         ->test(Users::class)
         ->call('openEdit', $existingMember->id)
-        ->assertSet('selectedTeamIds', [$developers->id])
+        ->assertSet('selectedChannelIds', [$developers->id])
         ->call('openAdd')
-        ->assertSet('selectedTeamIds', [])
+        ->assertSet('selectedChannelIds', [])
         ->assertSet('email', '')
         ->set('email', 'newbie@example.test')
         ->call('save')
         ->assertHasNoErrors();
 
-    expect(User::where('email', 'newbie@example.test')->sole()->teams)->toHaveCount(0);
+    expect(User::where('email', 'newbie@example.test')->sole()->channels)->toHaveCount(0);
 });
 
 it('toggles admin status both ways but never your own', function () {
@@ -312,10 +312,10 @@ it('requires a unique username to add someone when sso is off', function () {
     expect(User::count())->toBe(2);
 });
 
-it('edits a person\'s details and teams from the flyout when sso is off', function () {
+it('edits a person\'s details and channels from the flyout when sso is off', function () {
     config(['sso.enabled' => false]);
     $admin = User::factory()->create(['is_admin' => true]);
-    $developers = Team::factory()->create(['name' => 'developers']);
+    $developers = Channel::factory()->create(['name' => 'developers']);
     $fatFingered = User::factory()->create([
         'email' => 'wrong@example.test',
         'username' => 'wrong1x',
@@ -330,7 +330,7 @@ it('edits a person\'s details and teams from the flyout when sso is off', functi
         ->set('username', 'right1x')
         ->set('forenames', 'Right')
         ->set('surname', 'Person')
-        ->set('selectedTeamIds', [$developers->id])
+        ->set('selectedChannelIds', [$developers->id])
         ->call('save')
         ->assertHasNoErrors();
 
@@ -338,13 +338,13 @@ it('edits a person\'s details and teams from the flyout when sso is off', functi
     expect($fatFingered->email)->toBe('right@example.test');
     expect($fatFingered->username)->toBe('right1x');
     expect($fatFingered->full_name)->toBe('Right Person');
-    expect($fatFingered->teams()->pluck('teams.id')->all())->toBe([$developers->id]);
+    expect($fatFingered->channels()->pluck('channels.id')->all())->toBe([$developers->id]);
     expect(User::count())->toBe(2);
 });
 
-it('lets an sso-mode edit change teams but never identity details', function () {
+it('lets an sso-mode edit change channels but never identity details', function () {
     $admin = User::factory()->create(['is_admin' => true]);
-    $developers = Team::factory()->create(['name' => 'developers']);
+    $developers = Channel::factory()->create(['name' => 'developers']);
     $ssoOwned = User::factory()->create([
         'email' => 'sso@example.test',
         'username' => 'sso1x',
@@ -361,7 +361,7 @@ it('lets an sso-mode edit change teams but never identity details', function () 
         ->set('username', 'hijacked1x')
         ->set('forenames', 'Hi')
         ->set('surname', 'Jacked')
-        ->set('selectedTeamIds', [$developers->id])
+        ->set('selectedChannelIds', [$developers->id])
         ->call('save')
         ->assertHasNoErrors();
 
@@ -369,7 +369,7 @@ it('lets an sso-mode edit change teams but never identity details', function () 
     expect($ssoOwned->email)->toBe('sso@example.test');
     expect($ssoOwned->username)->toBe('sso1x');
     expect($ssoOwned->full_name)->toBe('Sso Person');
-    expect($ssoOwned->teams()->pluck('teams.id')->all())->toBe([$developers->id]);
+    expect($ssoOwned->channels()->pluck('channels.id')->all())->toBe([$developers->id]);
 });
 
 it('regenerates a working temporary password only when sso is off', function () {

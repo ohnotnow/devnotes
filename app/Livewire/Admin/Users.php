@@ -2,7 +2,7 @@
 
 namespace App\Livewire\Admin;
 
-use App\Models\Team;
+use App\Models\Channel;
 use App\Models\User;
 use Flux\Flux;
 use Illuminate\Support\Str;
@@ -21,7 +21,7 @@ class Users extends Component
 
     public string $newTempPassword = '';
 
-    public array $selectedTeamIds = [];
+    public array $selectedChannelIds = [];
 
     public ?User $editingUser = null;
 
@@ -32,14 +32,14 @@ class Users extends Component
     public function render()
     {
         return view('livewire.admin.users', [
-            'users' => User::orderBy('surname')->orderBy('email')->withCount('notes')->with('teams')->get(),
-            'teams' => Team::orderBy('name')->get(),
+            'users' => User::orderBy('surname')->orderBy('email')->withCount('notes')->with('channels')->get(),
+            'channels' => Channel::orderBy('name')->get(),
         ]);
     }
 
     public function openAdd(): void
     {
-        $this->reset('editingUser', 'email', 'username', 'forenames', 'surname', 'selectedTeamIds');
+        $this->reset('editingUser', 'email', 'username', 'forenames', 'surname', 'selectedChannelIds');
         $this->resetValidation();
 
         Flux::modal('user-add')->show();
@@ -52,7 +52,7 @@ class Users extends Component
         $this->username = $this->editingUser->username;
         $this->forenames = $this->editingUser->forenames;
         $this->surname = $this->editingUser->surname;
-        $this->selectedTeamIds = $this->editingUser->teams()->pluck('teams.id')->all();
+        $this->selectedChannelIds = $this->editingUser->channels()->pluck('channels.id')->all();
         $this->resetValidation();
 
         Flux::modal('user-add')->show();
@@ -76,10 +76,10 @@ class Users extends Component
         $this->validate($this->editValidationRules($user));
         $this->applyIdentityDetails($user);
 
-        $teamIds = array_map('intval', $this->selectedTeamIds);
-        $user->syncTeamPreferences($teamIds, $teamIds);
+        $channelIds = array_map('intval', $this->selectedChannelIds);
+        $user->syncChannelPreferences($channelIds, $channelIds);
 
-        $this->reset('editingUser', 'email', 'username', 'forenames', 'surname', 'selectedTeamIds');
+        $this->reset('editingUser', 'email', 'username', 'forenames', 'surname', 'selectedChannelIds');
         Flux::modal('user-add')->close();
         Flux::toast('Saved', variant: 'success');
     }
@@ -87,8 +87,8 @@ class Users extends Component
     private function editValidationRules(User $user): array
     {
         $rules = [
-            'selectedTeamIds' => ['array'],
-            'selectedTeamIds.*' => ['exists:teams,id'],
+            'selectedChannelIds' => ['array'],
+            'selectedChannelIds.*' => ['exists:channels,id'],
         ];
 
         if (config('sso.enabled')) {
@@ -116,7 +116,7 @@ class Users extends Component
             'must_change_password' => true,
         ]);
 
-        $this->reset('editingUser', 'email', 'username', 'forenames', 'surname', 'selectedTeamIds');
+        $this->reset('editingUser', 'email', 'username', 'forenames', 'surname', 'selectedChannelIds');
         Flux::modal('user-add')->close();
         Flux::toast('New temporary password - copy it to pass on', variant: 'success');
     }
@@ -142,8 +142,8 @@ class Users extends Component
 
         $rules = [
             'email' => ['required', 'email', 'unique:users,email'],
-            'selectedTeamIds' => ['array'],
-            'selectedTeamIds.*' => ['exists:teams,id'],
+            'selectedChannelIds' => ['array'],
+            'selectedChannelIds.*' => ['exists:channels,id'],
         ];
         if (! config('sso.enabled')) {
             $rules['username'] = ['required', 'unique:users,username'];
@@ -152,10 +152,10 @@ class Users extends Component
 
         $newUser = config('sso.enabled') ? $this->createSsoStub() : $this->createLocalUser();
 
-        $teamIds = array_map('intval', $this->selectedTeamIds);
-        $newUser->syncTeamPreferences($teamIds, $teamIds);
+        $channelIds = array_map('intval', $this->selectedChannelIds);
+        $newUser->syncChannelPreferences($channelIds, $channelIds);
 
-        $this->reset('email', 'username', 'forenames', 'surname', 'selectedTeamIds');
+        $this->reset('email', 'username', 'forenames', 'surname', 'selectedChannelIds');
         Flux::modal('user-add')->close();
         Flux::toast(
             config('sso.enabled')

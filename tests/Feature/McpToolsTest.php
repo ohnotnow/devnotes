@@ -7,9 +7,9 @@ use App\Mcp\Tools\GetNote;
 use App\Mcp\Tools\SearchNotes;
 use App\Mcp\Tools\UpdateNote;
 use App\Models\Activity;
+use App\Models\Channel;
 use App\Models\Note;
 use App\Models\OAuthUser;
-use App\Models\Team;
 use App\Models\User;
 
 it('finds matching notes via search-notes returning snippets rather than full bodies', function () {
@@ -37,7 +37,7 @@ it('finds matching notes via search-notes returning snippets rather than full bo
 
     $noMatches->assertOk();
     $noMatches->assertSee('"results":[]');
-    // This caller subscribes to no teams, so the search was never scoped and
+    // This caller subscribes to no channels, so the search was never scoped and
     // there is nothing to widen - no hint.
     $noMatches->assertDontSee('retry with broader');
 });
@@ -61,9 +61,9 @@ it('reports the total match count so a truncated result set is visible', functio
 });
 
 it('keeps the hint on a scoped search with zero results', function () {
-    $developers = Team::factory()->create(['name' => 'developers']);
+    $developers = Channel::factory()->create(['name' => 'developers']);
     $agentUser = User::factory()->create();
-    $agentUser->teams()->attach($developers);
+    $agentUser->channels()->attach($developers);
 
     $response = DevnotesServer::actingAs(OAuthUser::findOrFail($agentUser->id))->tool(SearchNotes::class, [
         'query' => 'nothing-matches-this',
@@ -74,15 +74,15 @@ it('keeps the hint on a scoped search with zero results', function () {
     $response->assertSee('retry with broader');
 });
 
-it('scopes search-notes to the caller\'s teams and hints that broader exists', function () {
-    $developers = Team::factory()->create(['name' => 'developers']);
-    $sysadmins = Team::factory()->create(['name' => 'sysadmins']);
+it('scopes search-notes to the caller\'s channels and hints that broader exists', function () {
+    $developers = Channel::factory()->create(['name' => 'developers']);
+    $sysadmins = Channel::factory()->create(['name' => 'sysadmins']);
     $agentUser = User::factory()->create();
-    $agentUser->teams()->attach($developers);
+    $agentUser->channels()->attach($developers);
     $developerNote = Note::factory()->create(['title' => 'Docker layer cache misses']);
-    $developerNote->teams()->attach($developers);
+    $developerNote->channels()->attach($developers);
     $sysadminNote = Note::factory()->create(['title' => 'Docker daemon log rotation']);
-    $sysadminNote->teams()->attach($sysadmins);
+    $sysadminNote->channels()->attach($sysadmins);
 
     $response = DevnotesServer::actingAs(OAuthUser::findOrFail($agentUser->id))->tool(SearchNotes::class, [
         'query' => 'docker',
@@ -94,17 +94,17 @@ it('scopes search-notes to the caller\'s teams and hints that broader exists', f
     $response->assertSee('retry with broader');
 });
 
-it('labels out-of-team hits under broader and drops the hint', function () {
-    $developers = Team::factory()->create(['name' => 'developers']);
-    $sysadmins = Team::factory()->create(['name' => 'sysadmins']);
+it('labels out-of-channel hits under broader and drops the hint', function () {
+    $developers = Channel::factory()->create(['name' => 'developers']);
+    $sysadmins = Channel::factory()->create(['name' => 'sysadmins']);
     $agentUser = User::factory()->create();
-    $agentUser->teams()->attach($developers);
+    $agentUser->channels()->attach($developers);
     $developerNote = Note::factory()->create(['title' => 'Docker layer cache misses']);
-    $developerNote->teams()->attach($developers);
+    $developerNote->channels()->attach($developers);
     $sysadminNote = Note::factory()->create(['title' => 'Docker daemon log rotation']);
-    $sysadminNote->teams()->attach($sysadmins);
+    $sysadminNote->channels()->attach($sysadmins);
     $sharedNote = Note::factory()->create(['title' => 'Docker registry auth expiry']);
-    $sharedNote->teams()->attach([$developers->id, $sysadmins->id]);
+    $sharedNote->channels()->attach([$developers->id, $sysadmins->id]);
     Note::factory()->create(['title' => 'Docker compose healthcheck gotcha']);
 
     $response = DevnotesServer::actingAs(OAuthUser::findOrFail($agentUser->id))->tool(SearchNotes::class, [
@@ -116,20 +116,20 @@ it('labels out-of-team hits under broader and drops the hint', function () {
     $response->assertSee('Docker daemon log rotation');
     $response->assertDontSee('retry with broader');
 
-    // Row keys serialise in build order, so a teams fragment followed by } or
-    // by the label pins which rows carry from_outside_your_teams.
-    $response->assertSee('"teams":["sysadmins"],"from_outside_your_teams":true');
-    $response->assertSee('"teams":["developers"]}');
-    $response->assertSee('"teams":[]}');
-    // A note sharing ANY team with the caller is not from outside their teams.
-    $response->assertSee('"teams":["developers","sysadmins"]}');
+    // Row keys serialise in build order, so a channels fragment followed by } or
+    // by the label pins which rows carry from_outside_your_channels.
+    $response->assertSee('"channels":["sysadmins"],"from_outside_your_channels":true');
+    $response->assertSee('"channels":["developers"]}');
+    $response->assertSee('"channels":[]}');
+    // A note sharing ANY channel with the caller is not from outside their channels.
+    $response->assertSee('"channels":["developers","sysadmins"]}');
 });
 
-it('labels nothing under broader for a caller with no teams', function () {
-    $sysadmins = Team::factory()->create(['name' => 'sysadmins']);
+it('labels nothing under broader for a caller with no channels', function () {
+    $sysadmins = Channel::factory()->create(['name' => 'sysadmins']);
     $agentUser = User::factory()->create();
     $sysadminNote = Note::factory()->create(['title' => 'Docker daemon log rotation']);
-    $sysadminNote->teams()->attach($sysadmins);
+    $sysadminNote->channels()->attach($sysadmins);
 
     $response = DevnotesServer::actingAs(OAuthUser::findOrFail($agentUser->id))->tool(SearchNotes::class, [
         'query' => 'docker',
@@ -138,7 +138,7 @@ it('labels nothing under broader for a caller with no teams', function () {
 
     $response->assertOk();
     $response->assertSee('Docker daemon log rotation');
-    $response->assertDontSee('from_outside_your_teams');
+    $response->assertDontSee('from_outside_your_channels');
 });
 
 it('returns the full note body via get-note accepting both bare and hash-prefixed codes', function () {
@@ -198,43 +198,43 @@ it('rejects invalid add-note input as a tool error and creates nothing', functio
     expect(Note::count())->toBe(0);
 });
 
-it('attaches teams on add-note from names, defaults, or a deliberate empty list', function () {
-    $developers = Team::factory()->create(['name' => 'developers']);
-    $sysadmins = Team::factory()->create(['name' => 'sysadmins']);
+it('attaches channels on add-note from names, defaults, or a deliberate empty list', function () {
+    $developers = Channel::factory()->create(['name' => 'developers']);
+    $sysadmins = Channel::factory()->create(['name' => 'sysadmins']);
     $agentUser = User::factory()->create();
-    $agentUser->teams()->attach($developers);
+    $agentUser->channels()->attach($developers);
 
     $defaulted = DevnotesServer::actingAs(OAuthUser::findOrFail($agentUser->id))->tool(AddNote::class, [
         'title' => 'Defaulted note', 'body' => 'Body.',
     ]);
     $defaulted->assertOk();
-    expect(Note::where('title', 'Defaulted note')->sole()->teams()->pluck('teams.id')->all())->toBe([$developers->id]);
+    expect(Note::where('title', 'Defaulted note')->sole()->channels()->pluck('channels.id')->all())->toBe([$developers->id]);
 
     $explicit = DevnotesServer::actingAs(OAuthUser::findOrFail($agentUser->id))->tool(AddNote::class, [
-        'title' => 'Explicit note', 'body' => 'Body.', 'teams' => ['sysadmins'],
+        'title' => 'Explicit note', 'body' => 'Body.', 'channels' => ['sysadmins'],
     ]);
     $explicit->assertOk();
-    expect(Note::where('title', 'Explicit note')->sole()->teams()->pluck('teams.id')->all())->toBe([$sysadmins->id]);
+    expect(Note::where('title', 'Explicit note')->sole()->channels()->pluck('channels.id')->all())->toBe([$sysadmins->id]);
 
-    $teamless = DevnotesServer::actingAs(OAuthUser::findOrFail($agentUser->id))->tool(AddNote::class, [
-        'title' => 'Whole-pot note', 'body' => 'Body.', 'teams' => [],
+    $channelless = DevnotesServer::actingAs(OAuthUser::findOrFail($agentUser->id))->tool(AddNote::class, [
+        'title' => 'Whole-pot note', 'body' => 'Body.', 'channels' => [],
     ]);
-    $teamless->assertOk();
-    expect(Note::where('title', 'Whole-pot note')->sole()->teams()->count())->toBe(0);
+    $channelless->assertOk();
+    expect(Note::where('title', 'Whole-pot note')->sole()->channels()->count())->toBe(0);
 
     $unknown = DevnotesServer::actingAs(OAuthUser::findOrFail($agentUser->id))->tool(AddNote::class, [
-        'title' => 'Bad team note', 'body' => 'Body.', 'teams' => ['made-up-team'],
+        'title' => 'Bad team note', 'body' => 'Body.', 'channels' => ['made-up-team'],
     ]);
-    $unknown->assertHasErrors(['teams.0']);
+    $unknown->assertHasErrors(['channels.0']);
     expect(Note::where('title', 'Bad team note')->exists())->toBeFalse();
 });
 
 it('returns similar notes from add-note as a dup nudge while still creating', function () {
-    $developers = Team::factory()->create(['name' => 'developers']);
+    $developers = Channel::factory()->create(['name' => 'developers']);
     $agentUser = User::factory()->create();
-    $agentUser->teams()->attach($developers);
+    $agentUser->channels()->attach($developers);
     $existingNote = Note::factory()->create(['title' => 'Docker layer cache misses on multi-stage builds']);
-    $existingNote->teams()->attach($developers);
+    $existingNote->channels()->attach($developers);
 
     $response = DevnotesServer::actingAs(OAuthUser::findOrFail($agentUser->id))->tool(AddNote::class, [
         'title' => 'Docker layer cache misses',
@@ -249,13 +249,13 @@ it('returns similar notes from add-note as a dup nudge while still creating', fu
 });
 
 it('nudges when titles merely overlap, best overlap first', function () {
-    $developers = Team::factory()->create(['name' => 'developers']);
+    $developers = Channel::factory()->create(['name' => 'developers']);
     $agentUser = User::factory()->create();
-    $agentUser->teams()->attach($developers);
+    $agentUser->channels()->attach($developers);
     $closeNote = Note::factory()->create(['title' => 'Docker layer cache misses on multi-stage builds']);
-    $closeNote->teams()->attach($developers);
+    $closeNote->channels()->attach($developers);
     $looseNote = Note::factory()->create(['title' => 'Docker daemon log rotation']);
-    $looseNote->teams()->attach($developers);
+    $looseNote->channels()->attach($developers);
 
     $response = DevnotesServer::actingAs(OAuthUser::findOrFail($agentUser->id))->tool(AddNote::class, [
         'title' => 'Docker layer cache invalidation',
@@ -271,14 +271,14 @@ it('ignores a lone body-word overlap in the dup nudge', function () {
     // Observed live: 'manifest' deep in an unrelated note's body dragged that
     // note into the nudge. One shared word in a body is coincidence, not
     // similarity - it takes a shared title word, or two body words, to nudge.
-    $developers = Team::factory()->create(['name' => 'developers']);
+    $developers = Channel::factory()->create(['name' => 'developers']);
     $agentUser = User::factory()->create();
-    $agentUser->teams()->attach($developers);
+    $agentUser->channels()->attach($developers);
     $dockerNote = Note::factory()->create([
         'title' => 'Docker layer cache misses on multi-stage builds',
         'body' => 'Copying package manifests before the source keeps the layer cache warm.',
     ]);
-    $dockerNote->teams()->attach($developers);
+    $dockerNote->channels()->attach($developers);
 
     $response = DevnotesServer::actingAs(OAuthUser::findOrFail($agentUser->id))->tool(AddNote::class, [
         'title' => 'Vite manifest goes stale after npm upgrade',
@@ -290,14 +290,14 @@ it('ignores a lone body-word overlap in the dup nudge', function () {
 });
 
 it('still nudges when two title words appear in an existing note\'s body', function () {
-    $developers = Team::factory()->create(['name' => 'developers']);
+    $developers = Channel::factory()->create(['name' => 'developers']);
     $agentUser = User::factory()->create();
-    $agentUser->teams()->attach($developers);
+    $agentUser->channels()->attach($developers);
     $existingNote = Note::factory()->create([
         'title' => 'Npm dependency hoisting surprises',
         'body' => 'Check the vite manifest when builds act oddly.',
     ]);
-    $existingNote->teams()->attach($developers);
+    $existingNote->channels()->attach($developers);
 
     $response = DevnotesServer::actingAs(OAuthUser::findOrFail($agentUser->id))->tool(AddNote::class, [
         'title' => 'Vite manifest goes stale after npm upgrade',
@@ -335,14 +335,14 @@ it('adds no dup nudge when nothing similar exists', function () {
     $response->assertDontSee('hint');
 });
 
-it('never suggests out-of-team notes in the dup nudge', function () {
-    // Cross-team near-duplicates are legitimate - the nudge is team-scoped only.
-    $developers = Team::factory()->create(['name' => 'developers']);
-    $sysadmins = Team::factory()->create(['name' => 'sysadmins']);
+it('never suggests out-of-channel notes in the dup nudge', function () {
+    // Cross-channel near-duplicates are legitimate - the nudge is channel-scoped only.
+    $developers = Channel::factory()->create(['name' => 'developers']);
+    $sysadmins = Channel::factory()->create(['name' => 'sysadmins']);
     $agentUser = User::factory()->create();
-    $agentUser->teams()->attach($developers);
+    $agentUser->channels()->attach($developers);
     $sysadminNote = Note::factory()->create(['title' => 'Docker layer cache misses on multi-stage builds']);
-    $sysadminNote->teams()->attach($sysadmins);
+    $sysadminNote->channels()->attach($sysadmins);
 
     $response = DevnotesServer::actingAs(OAuthUser::findOrFail($agentUser->id))->tool(AddNote::class, [
         'title' => 'Docker layer cache misses',
